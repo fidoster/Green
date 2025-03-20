@@ -9,8 +9,10 @@ import {
   Trash2,
   Leaf,
 } from "lucide-react";
+import UserAvatar from "./UserAvatar";
 import { cn } from "../lib/utils";
 import PersonaSelector, { PersonaType } from "./PersonaSelector";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface ChatHistoryItem {
   id: string;
@@ -26,6 +28,7 @@ interface SidebarProps {
   chatHistory?: ChatHistoryItem[];
   className?: string;
   initialPersona?: PersonaType;
+  onSelectPersona?: (persona: PersonaType) => void;
 }
 
 const Sidebar = ({
@@ -45,6 +48,7 @@ const Sidebar = ({
   ],
   className,
   initialPersona = "greenbot",
+  onSelectPersona = () => {},
 }: SidebarProps) => {
   const [history, setHistory] = useState<ChatHistoryItem[]>(chatHistory);
   const [selectedPersona, setSelectedPersona] =
@@ -55,6 +59,11 @@ const Sidebar = ({
     setHistory(history.filter((chat) => chat.id !== id));
   };
 
+  const handlePersonaChange = (persona: PersonaType) => {
+    setSelectedPersona(persona);
+    onSelectPersona(persona);
+  };
+
   return (
     <div
       className={cn(
@@ -62,9 +71,15 @@ const Sidebar = ({
         className,
       )}
     >
-      <div className="flex items-center gap-2 mb-6">
-        <Leaf className="h-6 w-6 text-[#98C9A3]" />
-        <h1 className="text-xl font-semibold">GreenBot</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Leaf className="h-6 w-6 text-[#98C9A3]" />
+          <h1 className="text-xl font-semibold">GreenBot</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <UserAvatar className="h-8 w-8" />
+        </div>
       </div>
 
       <Button
@@ -77,7 +92,7 @@ const Sidebar = ({
 
       <PersonaSelector
         selectedPersona={selectedPersona}
-        onSelectPersona={setSelectedPersona}
+        onSelectPersona={handlePersonaChange}
         className="mb-4"
       />
 

@@ -4,9 +4,11 @@ import { cn } from "../lib/utils";
 
 export type PersonaType =
   | "greenbot"
-  | "homeadvisor"
-  | "recyclingexpert"
-  | "waterconservation";
+  | "lifestyle"
+  | "waste"
+  | "nature"
+  | "energy"
+  | "climate";
 
 export interface Persona {
   id: PersonaType;
@@ -36,25 +38,77 @@ const PersonaSelector = ({
       color: "#98C9A3",
     },
     {
-      id: "homeadvisor",
-      name: "Home Advisor",
-      description: "Eco-friendly home solutions",
+      id: "lifestyle",
+      name: "EcoLife Guide",
+      description: "Sustainable lifestyle advisor",
       icon: <Home className="h-5 w-5" />,
       color: "#8BA888",
     },
     {
-      id: "recyclingexpert",
-      name: "Recycling Expert",
-      description: "Waste reduction specialist",
+      id: "waste",
+      name: "Waste Wizard",
+      description: "Waste management specialist",
       icon: <Recycle className="h-5 w-5" />,
       color: "#2C4A3E",
     },
     {
-      id: "waterconservation",
-      name: "Water Guardian",
-      description: "Water conservation advisor",
+      id: "nature",
+      name: "Nature Navigator",
+      description: "Biodiversity & conservation expert",
       icon: <Droplets className="h-5 w-5" />,
       color: "#6AADCB",
+    },
+    {
+      id: "energy",
+      name: "Power Sage",
+      description: "Energy efficiency specialist",
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-5 w-5"
+        >
+          <path d="M18 3v4"></path>
+          <path d="M14 7h8"></path>
+          <path d="M18 11v4"></path>
+          <path d="M14 15h8"></path>
+          <path d="M18 19v2"></path>
+          <path d="M12 3v2"></path>
+          <path d="M8 5h8"></path>
+          <path d="M12 7v12"></path>
+          <path d="M8 19h8"></path>
+        </svg>
+      ),
+      color: "#F6C344",
+    },
+    {
+      id: "climate",
+      name: "Climate Guardian",
+      description: "Climate action specialist",
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-5 w-5"
+        >
+          <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+        </svg>
+      ),
+      color: "#5D93E1",
     },
   ];
 
@@ -72,7 +126,7 @@ const PersonaSelector = ({
             className={cn(
               "flex flex-col items-center p-3 rounded-md transition-all shadow-lg transform hover:scale-105",
               selectedPersona === persona.id
-                ? `bg-opacity-20 border border-[${persona.color}]`
+                ? `bg-opacity-20 border-2 border-[${persona.color}]`
                 : "bg-[#2C4A3E]/30 hover:bg-[#2C4A3E]/50",
             )}
             style={{
@@ -105,7 +159,7 @@ const PersonaSelector = ({
               {persona.icon}
             </div>
             <span
-              className="text-xs font-medium"
+              className="text-xs font-medium text-white"
               style={{
                 textShadow:
                   selectedPersona === persona.id

@@ -1,7 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
-import { Moon, Sun, Leaf, Info } from "lucide-react";
+import { Moon, Sun, Leaf, Info, Key } from "lucide-react";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
+import { supabase } from "../lib/supabase";
+import { useTheme } from "./ThemeProvider";
 
 interface SettingsPanelProps {
   isOpen?: boolean;
@@ -12,16 +16,42 @@ const SettingsPanel = ({
   isOpen = true,
   onClose = () => {},
 }: SettingsPanelProps) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const isDarkMode = theme === "dark";
   const [showMetrics, setShowMetrics] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [autoSave, setAutoSave] = useState(true);
+  const [apiKey, setApiKey] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [isTestingApi, setIsTestingApi] = useState(false);
+  const [apiTestResult, setApiTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    // Load API key from localStorage if available
+    const savedApiKey = localStorage.getItem("deepseek-api-key") || "";
+    setApiKey(savedApiKey);
+
+    // Get current user email
+    const getUserEmail = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setUserEmail(data.user.email || "");
+      }
+    };
+
+    getUserEmail();
+  }, []);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-[#F5F5F5] p-6 shadow-lg dark:bg-[#2F3635]">
+      <div className="w-full max-w-md rounded-lg bg-[#F5F5F5] p-6 shadow-lg dark:bg-[#2F3635] dark:text-white">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-[#2C4A3E]">Settings</h2>
           <button
@@ -62,7 +92,9 @@ const SettingsPanel = ({
             </div>
             <Switch
               checked={isDarkMode}
-              onCheckedChange={setIsDarkMode}
+              onCheckedChange={(checked) =>
+                setTheme(checked ? "dark" : "light")
+              }
               className="data-[state=checked]:bg-[#8BA888] data-[state=unchecked]:bg-gray-300"
             />
           </div>
@@ -161,13 +193,127 @@ const SettingsPanel = ({
           </div>
         )}
 
-        <div className="mt-4 flex justify-end">
-          <button
+        {/* API Key Section */}
+        <div className="mt-4 rounded-md bg-[#F5F5F5] p-4 dark:bg-[#3A4140]">
+          <div className="mb-3 flex items-center gap-2">
+            <Key className="h-4 w-4 text-[#8BA888]" />
+            <h3 className="text-sm font-medium text-[#2C4A3E] dark:text-white">
+              DeepSeek API Key Settings
+            </h3>
+          </div>
+
+          <div className="mb-2 text-xs text-[#2C4A3E]/80 dark:text-white/80">
+            <p>Current user: {userEmail || "Not signed in"}</p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Enter your API key"
+                className="bg-white dark:bg-[#2F3635] border-[#E0E0E0] dark:border-[#3A4140]"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setIsSaving(true);
+                  // Save API key to localStorage
+                  localStorage.setItem("deepseek-api-key", apiKey);
+                  setTimeout(() => {
+                    setSaveMessage("API key saved successfully");
+                    setIsSaving(false);
+                    setTimeout(() => setSaveMessage(""), 3000);
+                  }, 500);
+                }}
+                className="flex-1 bg-[#8BA888] hover:bg-[#8BA888]/90 text-white"
+                disabled={isSaving || isTestingApi}
+              >
+                {isSaving ? "Saving..." : "Save API Key"}
+              </Button>
+
+              <Button
+                onClick={async () => {
+                  if (!apiKey.trim()) {
+                    setApiTestResult({
+                      success: false,
+                      message: "Please enter an API key first",
+                    });
+                    return;
+                  }
+
+                  setIsTestingApi(true);
+                  setApiTestResult(null);
+
+                  try {
+                    // Import dynamically to avoid circular dependencies
+                    const { callDeepseekAPI } = await import("../lib/deepseek");
+                    await callDeepseekAPI(
+                      [
+                        {
+                          role: "system",
+                          content: "You are a helpful assistant.",
+                        },
+                        { role: "user", content: "Test connection" },
+                      ],
+                      apiKey,
+                    );
+
+                    setApiTestResult({
+                      success: true,
+                      message: "API connection successful!",
+                    });
+                  } catch (error) {
+                    setApiTestResult({
+                      success: false,
+                      message:
+                        error instanceof Error
+                          ? error.message
+                          : "Unknown error",
+                    });
+                  } finally {
+                    setIsTestingApi(false);
+                  }
+                }}
+                className="bg-blue-500 hover:bg-blue-600 text-white"
+                disabled={isSaving || isTestingApi}
+              >
+                {isTestingApi ? "Testing..." : "Test API"}
+              </Button>
+            </div>
+            {saveMessage && (
+              <p className="text-xs text-green-600 text-center">
+                {saveMessage}
+              </p>
+            )}
+            {apiTestResult && (
+              <p
+                className={`text-xs ${apiTestResult.success ? "text-green-600" : "text-red-600"} text-center mt-2`}
+              >
+                {apiTestResult.message}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-between">
+          <Button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.reload();
+            }}
+            className="rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600"
+          >
+            Sign Out
+          </Button>
+          <Button
             onClick={onClose}
             className="rounded-md bg-[#8BA888] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#8BA888]/90"
           >
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>
