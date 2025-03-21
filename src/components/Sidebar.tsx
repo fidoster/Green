@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { ScrollArea } from "./ui/scroll-area";
@@ -51,12 +51,34 @@ const Sidebar = ({
   onSelectPersona = () => {},
 }: SidebarProps) => {
   const [history, setHistory] = useState<ChatHistoryItem[]>(chatHistory);
+
+  // Update local history when chatHistory prop changes
+  useEffect(() => {
+    setHistory(chatHistory);
+  }, [chatHistory]);
   const [selectedPersona, setSelectedPersona] =
     useState<PersonaType>(initialPersona);
 
   const handleDeleteChat = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    // Update local state
     setHistory(history.filter((chat) => chat.id !== id));
+
+    // Also update parent component's state through props
+    if (onSelectChat && history.find((chat) => chat.id === id)?.selected) {
+      // If the deleted chat was selected, select another chat
+      const remainingChats = history.filter((chat) => chat.id !== id);
+      if (remainingChats.length > 0) {
+        onSelectChat(remainingChats[0].id);
+      }
+    }
+
+    // Store deleted chat IDs in localStorage to persist across refreshes
+    const deletedChats = JSON.parse(
+      localStorage.getItem("deletedChats") || "[]",
+    );
+    deletedChats.push(id);
+    localStorage.setItem("deletedChats", JSON.stringify(deletedChats));
   };
 
   const handlePersonaChange = (persona: PersonaType) => {
@@ -67,7 +89,7 @@ const Sidebar = ({
   return (
     <div
       className={cn(
-        "flex flex-col h-full w-[320px] bg-[#2F3635] text-white p-4",
+        "flex flex-col h-full w-[320px] bg-[#2A3130] text-white p-4",
         className,
       )}
     >

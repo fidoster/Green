@@ -51,7 +51,7 @@ const SettingsPanel = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-[#F5F5F5] p-6 shadow-lg dark:bg-[#2F3635] dark:text-white">
+      <div className="w-full max-w-md rounded-lg bg-[#F5F5F5] p-6 shadow-lg dark:bg-[#2A3130] dark:text-white">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-[#2C4A3E]">Settings</h2>
           <button
@@ -194,7 +194,7 @@ const SettingsPanel = ({
         )}
 
         {/* API Key Section */}
-        <div className="mt-4 rounded-md bg-[#F5F5F5] p-4 dark:bg-[#3A4140]">
+        <div className="mt-4 rounded-md bg-[#F5F5F5] p-4 dark:bg-[#343C3B]">
           <div className="mb-3 flex items-center gap-2">
             <Key className="h-4 w-4 text-[#8BA888]" />
             <h3 className="text-sm font-medium text-[#2C4A3E] dark:text-white">
@@ -213,7 +213,7 @@ const SettingsPanel = ({
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="Enter your API key"
-                className="bg-white dark:bg-[#2F3635] border-[#E0E0E0] dark:border-[#3A4140]"
+                className="bg-white dark:bg-[#343C3B] border-[#E0E0E0] dark:border-[#4A5250]"
               />
             </div>
             <div className="flex gap-2">

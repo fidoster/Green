@@ -324,10 +324,8 @@ const ChatInterface = ({
 
   const handleNewChat = async () => {
     try {
-      console.log("Creating new chat");
       // Save current conversation to history if it has messages
       if (messages.length > 1) {
-        console.log("Saving current conversation to history");
         // Find the current conversation in history
         const currentChat = chatHistory.find(
           (chat) => chat.id === currentConversationId,
@@ -338,29 +336,15 @@ const ChatInterface = ({
 
         if (userMessage) {
           const title = generateTitleFromContent(userMessage.content);
-          console.log("Generated title:", title);
 
           if (currentConversationId && currentChat) {
             // Update existing conversation title if needed
             if (currentChat.title === "New Conversation") {
-              console.log("Updating conversation title in Supabase");
               await updateConversationTitle(currentConversationId, title);
-
-              // Also update the title in the local chat history
-              setChatHistory((prev) =>
-                prev.map((chat) =>
-                  chat.id === currentConversationId
-                    ? { ...chat, title, selected: false }
-                    : { ...chat, selected: false },
-                ),
-              );
             }
           } else {
             // Create a local history item for non-authenticated users
             const newChatId = `local-chat-${Date.now()}`;
-            console.log("Creating local history item:", newChatId, title);
-
-            // Save the current conversation to history before creating a new one
             setChatHistory((prev) => [
               ...prev.map((chat) => ({ ...chat, selected: false })),
               {
@@ -377,13 +361,10 @@ const ChatInterface = ({
       // Check if user is authenticated
       if (!isAuthenticated) {
         // If not authenticated, just reset the UI without saving
-        console.log("User not authenticated, creating local chat");
         setCurrentConversationId(null);
 
         // Update chat history to unselect all and add new chat
         const newChatId = `local-chat-${Date.now()}`;
-        console.log("Creating new local chat ID:", newChatId);
-
         setChatHistory((prev) => [
           {
             id: newChatId,
@@ -395,17 +376,16 @@ const ChatInterface = ({
         ]);
 
         // Reset messages with just a welcome message
-        const welcomeMessage = {
-          id: `welcome-${Date.now()}`,
-          content:
-            "Hello! I'm GreenBot, your sustainable AI assistant. How can I help you with environmental topics today?",
-          sender: "bot",
-          timestamp: new Date(),
-          persona: getPersonaDisplayName(currentPersona),
-        };
-
-        console.log("Setting welcome message for new chat");
-        setMessages([welcomeMessage]);
+        setMessages([
+          {
+            id: `welcome-${Date.now()}`,
+            content:
+              "Hello! I'm GreenBot, your sustainable AI assistant. How can I help you with environmental topics today?",
+            sender: "bot",
+            timestamp: new Date(),
+            persona: getPersonaDisplayName(currentPersona),
+          },
+        ]);
 
         return;
       }
@@ -477,7 +457,6 @@ const ChatInterface = ({
 
   const handleSelectChat = async (id: string) => {
     try {
-      console.log("Selecting chat:", id);
       // Update chat history UI first for responsiveness
       setChatHistory((prev) =>
         prev.map((chat) => ({
@@ -488,92 +467,31 @@ const ChatInterface = ({
 
       // Check if this is a local chat (not saved in Supabase)
       if (id.startsWith("local-") || !isAuthenticated) {
-        // For local chats, use more realistic demo behavior based on the chat ID
+        // For local chats, just use the demo behavior
         const selectedChat = chatHistory.find((chat) => chat.id === id);
         if (selectedChat) {
-          console.log("Loading local chat:", selectedChat.title);
-
-          // Create different demo messages based on the chat title
-          let demoMessages = [];
-
-          if (
-            selectedChat.title.toLowerCase().includes("renewable") ||
-            id === "local-demo-1"
-          ) {
-            demoMessages = [
-              {
-                id: `demo-${id}-1`,
-                content: `Hello! I'm your GreenBot assistant. How can I help you with renewable energy today?`,
-                sender: "bot",
-                timestamp: new Date(Date.now() - 120000),
-                persona: getPersonaDisplayName(currentPersona),
-              },
-              {
-                id: `demo-${id}-2`,
-                content: `I'm interested in solar panels for my home. What should I know before installing them?`,
-                sender: "user",
-                timestamp: new Date(Date.now() - 60000),
-              },
-              {
-                id: `demo-${id}-3`,
-                content: `Great question about solar panels! Before installation, consider: 1) Your roof's condition and orientation (south-facing is ideal), 2) Local climate and sunlight hours, 3) Energy needs and consumption patterns, 4) Available incentives and tax credits, 5) Connection options (grid-tied vs. battery storage), and 6) Local regulations and permits. Would you like me to elaborate on any of these aspects?`,
-                sender: "bot",
-                timestamp: new Date(),
-                persona: getPersonaDisplayName(currentPersona),
-              },
-            ];
-          } else if (
-            selectedChat.title.toLowerCase().includes("recycling") ||
-            id === "local-demo-2"
-          ) {
-            demoMessages = [
-              {
-                id: `demo-${id}-1`,
-                content: `Hello! I'm your Waste Wizard assistant. How can I help you with recycling today?`,
-                sender: "bot",
-                timestamp: new Date(Date.now() - 120000),
-                persona: "Waste Wizard",
-              },
-              {
-                id: `demo-${id}-2`,
-                content: `I'm confused about which plastics can be recycled. Can you help me understand the different plastic types?`,
-                sender: "user",
-                timestamp: new Date(Date.now() - 60000),
-              },
-              {
-                id: `demo-${id}-3`,
-                content: `Absolutely! Plastics are labeled with numbers 1-7 inside the recycling symbol. Here's a quick guide:\n\n1 (PET): Water bottles, soda bottles - Widely recyclable\n2 (HDPE): Milk jugs, detergent bottles - Widely recyclable\n3 (PVC): Pipes, siding - Limited recyclability\n4 (LDPE): Plastic bags, squeeze bottles - Check locally\n5 (PP): Yogurt containers, bottle caps - Increasingly recyclable\n6 (PS): Styrofoam, disposable cups - Limited recyclability\n7 (Other): Mixed plastics - Rarely recyclable\n\nAlways check your local recycling guidelines as they vary by location!`,
-                sender: "bot",
-                timestamp: new Date(),
-                persona: "Waste Wizard",
-              },
-            ];
-          } else {
-            demoMessages = [
-              {
-                id: `demo-${id}-1`,
-                content: `Hello! I'm your sustainable AI assistant. How can I help you with "${selectedChat.title}" today?`,
-                sender: "bot",
-                timestamp: new Date(Date.now() - 120000),
-                persona: getPersonaDisplayName(currentPersona),
-              },
-              {
-                id: `demo-${id}-2`,
-                content: `Tell me more about ${selectedChat.title.toLowerCase()}.`,
-                sender: "user",
-                timestamp: new Date(Date.now() - 60000),
-              },
-              {
-                id: `demo-${id}-3`,
-                content: `I'd be happy to discuss ${selectedChat.title.toLowerCase()} with you! This is a topic related to sustainability and environmental consciousness. What specific aspects would you like to learn about?`,
-                sender: "bot",
-                timestamp: new Date(),
-                persona: getPersonaDisplayName(currentPersona),
-              },
-            ];
-          }
-
-          setMessages(demoMessages);
+          setMessages([
+            {
+              id: `demo-${id}-1`,
+              content: `This is the beginning of your conversation about "${selectedChat.title}".`,
+              sender: "bot",
+              timestamp: new Date(Date.now() - 120000),
+              persona: getPersonaDisplayName(currentPersona),
+            },
+            {
+              id: `demo-${id}-2`,
+              content: `Tell me more about ${selectedChat.title.toLowerCase()}.`,
+              sender: "user",
+              timestamp: new Date(Date.now() - 60000),
+            },
+            {
+              id: `demo-${id}-3`,
+              content: `I'd be happy to discuss ${selectedChat.title.toLowerCase()} with you! This is a placeholder response that would contain relevant information about this topic in a real implementation.`,
+              sender: "bot",
+              timestamp: new Date(),
+              persona: getPersonaDisplayName(currentPersona),
+            },
+          ]);
         }
         setCurrentConversationId(null);
         return;
@@ -678,6 +596,14 @@ const ChatInterface = ({
     }
   };
 
+  // Filter out deleted chats from history
+  const filterDeletedChats = (chats: ChatHistoryItem[]) => {
+    const deletedChats = JSON.parse(
+      localStorage.getItem("deletedChats") || "[]",
+    );
+    return chats.filter((chat) => !deletedChats.includes(chat.id));
+  };
+
   // Effect to check authentication and load conversations
   useEffect(() => {
     const checkAuth = async () => {
@@ -692,7 +618,6 @@ const ChatInterface = ({
           try {
             // Load conversations from Supabase
             const conversations = await getConversations();
-            console.log("Loaded conversations:", conversations);
 
             if (conversations && conversations.length > 0) {
               // Map conversations to chat history items
@@ -703,20 +628,14 @@ const ChatInterface = ({
                 selected: index === 0, // Select the first conversation
               }));
 
-              console.log("Setting chat history:", chatHistoryItems);
-              setChatHistory(chatHistoryItems);
+              setChatHistory(filterDeletedChats(chatHistoryItems));
 
               // Load the first conversation
               if (chatHistoryItems.length > 0) {
-                console.log(
-                  "Loading first conversation:",
-                  chatHistoryItems[0].id,
-                );
                 await handleSelectChat(chatHistoryItems[0].id);
               }
             } else {
               // If no conversations, create a new one
-              console.log("No conversations found, creating new chat");
               await handleNewChat();
             }
           } catch (loadError) {
@@ -726,28 +645,53 @@ const ChatInterface = ({
             setMessages(initialMessages);
           }
         } else {
-          console.log("User not authenticated, using default chat history");
-          // For non-authenticated users, create some demo chat history
-          const demoHistory = [
+          // If not authenticated, use the default chat history
+          const defaultChats = [
             {
-              id: "local-demo-1",
-              title: "Renewable Energy",
-              date: "Today",
+              id: "1",
+              title: "Renewable Energy Sources",
+              date: "2 hours ago",
+            },
+            {
+              id: "2",
+              title: "Carbon Footprint Reduction",
+              date: "1 day ago",
               selected: true,
             },
             {
-              id: "local-demo-2",
-              title: "Recycling Tips",
-              date: "Yesterday",
-              selected: false,
+              id: "3",
+              title: "Sustainable Gardening Tips",
+              date: "3 days ago",
+            },
+            {
+              id: "4",
+              title: "Ocean Plastic Solutions",
+              date: "1 week ago",
             },
           ];
-          setChatHistory(demoHistory);
-          // Load the first demo conversation
-          await handleSelectChat("local-demo-1");
+
+          setChatHistory(
+            filterDeletedChats(
+              initialChatHistory.length > 0 ? initialChatHistory : defaultChats,
+            ),
+          );
+          setMessages(initialMessages);
         }
       } catch (error) {
         console.error("Error checking authentication:", error);
+        // Fallback to default chat history on error
+        const defaultChats = [
+          { id: "1", title: "Renewable Energy Sources", date: "2 hours ago" },
+          {
+            id: "2",
+            title: "Carbon Footprint Reduction",
+            date: "1 day ago",
+            selected: true,
+          },
+          { id: "3", title: "Sustainable Gardening Tips", date: "3 days ago" },
+          { id: "4", title: "Ocean Plastic Solutions", date: "1 week ago" },
+        ];
+        setChatHistory(filterDeletedChats(defaultChats));
       } finally {
         setIsLoading(false);
       }
@@ -765,7 +709,22 @@ const ChatInterface = ({
           setIsAuthenticated(false);
           setCurrentConversationId(null);
           // Reset to default chat history and messages
-          setChatHistory(initialChatHistory);
+          const defaultChats = [
+            { id: "1", title: "Renewable Energy Sources", date: "2 hours ago" },
+            {
+              id: "2",
+              title: "Carbon Footprint Reduction",
+              date: "1 day ago",
+              selected: true,
+            },
+            {
+              id: "3",
+              title: "Sustainable Gardening Tips",
+              date: "3 days ago",
+            },
+            { id: "4", title: "Ocean Plastic Solutions", date: "1 week ago" },
+          ];
+          setChatHistory(filterDeletedChats(defaultChats));
           setMessages(initialMessages);
         }
       },
@@ -777,7 +736,7 @@ const ChatInterface = ({
   }, []);
 
   return (
-    <div className="flex h-screen w-full bg-[#F5F5F5] dark:bg-[#2F3635]">
+    <div className="flex h-screen w-full bg-[#F5F5F5] dark:bg-[#2A3130]">
       {/* Sidebar */}
       <Sidebar
         chatHistory={chatHistory}

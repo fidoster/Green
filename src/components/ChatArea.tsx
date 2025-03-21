@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Droplet, Home, Leaf, Recycle, Send } from "lucide-react";
@@ -32,6 +32,24 @@ interface ChatAreaProps {
     | "Climate Guardian";
   chatTitle?: string;
 }
+
+// Function to get a random sustainability fact
+const getSustainabilityFact = () => {
+  const facts = [
+    "Using AI on renewable energy servers reduces carbon footprint by up to 90%.",
+    "One tree absorbs about 25kg of CO₂ per year - this chat just saved the equivalent of a day's work for a tree!",
+    "Green AI models use 70% less energy than traditional large language models.",
+    "Sustainable data centers can run on 100% renewable energy.",
+    "Energy-efficient AI processing saves enough electricity to power a home for a day.",
+    "Eco-friendly cloud computing reduces global IT emissions by millions of tons annually.",
+    "Using this chat instead of traditional AI saves enough energy to charge your phone 5 times.",
+    "Sustainable AI helps reduce global tech carbon emissions by up to 15%.",
+    "Green computing initiatives have reduced data center energy use by 40% since 2010.",
+    "Every eco-friendly chat contributes to a potential 5% reduction in AI's carbon footprint.",
+  ];
+
+  return facts[Math.floor(Math.random() * facts.length)];
+};
 
 const ChatArea = ({
   messages = [
@@ -79,15 +97,12 @@ const ChatArea = ({
         }
       };
 
-      // Execute scroll immediately and then multiple times with increasing delays
+      // Execute scroll multiple times to ensure it happens
       scrollToBottom();
-
-      // Use more frequent intervals for more reliable scrolling
-      for (let i = 1; i <= 15; i++) {
-        setTimeout(scrollToBottom, i * 50);
-      }
+      setTimeout(scrollToBottom, 100);
+      setTimeout(scrollToBottom, 300);
+      setTimeout(scrollToBottom, 500);
       setTimeout(scrollToBottom, 1000);
-      setTimeout(scrollToBottom, 1500);
     }
   };
 
@@ -109,17 +124,38 @@ const ChatArea = ({
       }
     };
 
-    // Execute scroll immediately and then multiple times with increasing delays
+    // Execute scroll multiple times to ensure it happens after all renders and animations
     scrollToBottom();
+    const timeoutIds = [
+      setTimeout(scrollToBottom, 50),
+      setTimeout(scrollToBottom, 100),
+      setTimeout(scrollToBottom, 200),
+      setTimeout(scrollToBottom, 500),
+      setTimeout(scrollToBottom, 1000),
+      setTimeout(scrollToBottom, 1500),
+    ];
 
-    // Use more aggressive scrolling with more frequent intervals
-    const timeoutIds = [];
-    for (let i = 1; i <= 20; i++) {
-      timeoutIds.push(setTimeout(scrollToBottom, i * 50));
+    // Set up a mutation observer to detect new messages and scroll down
+    const messagesContainer = document.getElementById(
+      "chat-messages-container",
+    );
+    if (messagesContainer) {
+      const observer = new MutationObserver(() => {
+        scrollToBottom();
+      });
+
+      observer.observe(messagesContainer, {
+        childList: true,
+        subtree: true,
+        attributes: false,
+        characterData: true,
+      });
+
+      return () => {
+        observer.disconnect();
+        timeoutIds.forEach((id) => clearTimeout(id));
+      };
     }
-    // Add some longer timeouts to catch any delayed renders
-    timeoutIds.push(setTimeout(scrollToBottom, 1500));
-    timeoutIds.push(setTimeout(scrollToBottom, 2000));
 
     return () => {
       timeoutIds.forEach((id) => clearTimeout(id));
@@ -127,9 +163,9 @@ const ChatArea = ({
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full bg-[#F5F5F5] dark:bg-[#2F3635]">
+    <div className="flex flex-col h-full bg-[#F5F5F5] dark:bg-[#2A3130]">
       {/* Top Navigation Bar */}
-      <div className="flex items-center justify-between p-3 border-b border-[#E0E0E0] dark:border-[#3A4140] bg-white dark:bg-[#2F3635]">
+      <div className="flex items-center justify-between p-3 border-b border-[#E0E0E0] dark:border-[#3A4140] bg-white dark:bg-[#2A3130]">
         <div className="flex items-center space-x-2">
           {currentPersona === "GreenBot" && (
             <Leaf className="h-5 w-5 text-[#98C9A3]" />
@@ -228,7 +264,6 @@ const ChatArea = ({
         id="chat-messages-container"
         scrollable={true}
         type="always"
-        style={{ scrollBehavior: "smooth" }}
       >
         <div className="flex flex-col space-y-4">
           {messages.map((message) => (
@@ -310,19 +345,27 @@ const ChatArea = ({
                 </p>
                 <div className="flex justify-between items-center mt-2">
                   {message.sender === "bot" && (
-                    <MessageActions
-                      onLike={() => console.log("Liked message:", message.id)}
-                      onDislike={() =>
-                        console.log("Disliked message:", message.id)
-                      }
-                      onCopy={() => {
-                        navigator.clipboard.writeText(message.content);
-                        console.log("Copied message:", message.id);
-                      }}
-                      onRegenerate={() =>
-                        console.log("Regenerate message:", message.id)
-                      }
-                    />
+                    <div className="flex items-center">
+                      <MessageActions
+                        onLike={() => {
+                          console.log("Liked message:", message.id);
+                          // Add any additional like functionality here
+                        }}
+                        onDislike={() => {
+                          console.log("Disliked message:", message.id);
+                          // Add any additional dislike functionality here
+                        }}
+                        onCopy={() => {
+                          navigator.clipboard.writeText(message.content);
+                          console.log("Copied message:", message.id);
+                        }}
+                        onRegenerate={() => {
+                          console.log("Regenerate message:", message.id);
+                          // Add regeneration functionality here
+                        }}
+                        className="opacity-100"
+                      />
+                    </div>
                   )}
                   <p
                     className={`text-xs opacity-70 ${message.sender === "bot" ? "ml-auto" : ""}`}
@@ -340,7 +383,7 @@ const ChatArea = ({
       </ScrollArea>
 
       {/* Message input area */}
-      <div className="border-t border-[#E0E0E0] dark:border-[#3A4140] p-4 bg-white dark:bg-[#2F3635]">
+      <div className="border-t border-[#E0E0E0] dark:border-[#3A4140] p-4 bg-white dark:bg-[#2A3130]">
         <div className="flex items-center space-x-2">
           <div className="relative flex-1">
             <Input
@@ -348,7 +391,7 @@ const ChatArea = ({
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Recycle your thoughts here..."
-              className="pr-10 bg-[#F5F5F5] dark:bg-[#3A4140] border-[#E0E0E0] dark:border-[#3A4140] rounded-xl"
+              className="pr-10 bg-[#F5F5F5] dark:bg-[#343C3B] border-[#E0E0E0] dark:border-[#4A5250] rounded-xl"
             />
             {currentPersona === "GreenBot" && (
               <Leaf className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#98C9A3] opacity-70" />
@@ -412,8 +455,16 @@ const ChatArea = ({
             <span className="sr-only">Send message</span>
           </Button>
         </div>
-        <div className="text-xs text-center mt-2 text-[#8BA888] dark:text-[#98C9A3]">
-          <span>💚 This chat saved 0.02kg CO₂ compared to traditional AI</span>
+        <div className="flex items-center justify-center mt-2 text-xs text-[#8BA888] dark:text-[#98C9A3]">
+          <img
+            src="https://i.ibb.co/Jt2kDPQ/eco-logo.png"
+            alt="Eco-friendly AI"
+            className="h-5 w-5 mr-2"
+          />
+          <span>
+            💚 This chat saved 0.02kg CO₂ compared to traditional AI -{" "}
+            {getSustainabilityFact()}
+          </span>
         </div>
       </div>
     </div>

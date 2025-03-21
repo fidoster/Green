@@ -18,7 +18,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           {import.meta.env.VITE_TEMPO === "true" && (
-            <Route path="/tempobook/*" element={<div />} />
+            <Route path="/tempobook/*" element={null} />
           )}
           <Route path="*" element={<Home />} />
         </Routes>
