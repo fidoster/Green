@@ -16,6 +16,7 @@ export interface Persona {
   description: string;
   icon: React.ReactNode;
   color: string;
+  lightColor: string;
 }
 
 interface PersonaSelectorProps {
@@ -36,6 +37,7 @@ const PersonaSelector = ({
       description: "General sustainability advisor",
       icon: <Leaf className="h-5 w-5" />,
       color: "#98C9A3",
+      lightColor: "#4B9460",
     },
     {
       id: "lifestyle",
@@ -43,6 +45,7 @@ const PersonaSelector = ({
       description: "Sustainable lifestyle advisor",
       icon: <Home className="h-5 w-5" />,
       color: "#8BA888",
+      lightColor: "#5A7258",
     },
     {
       id: "waste",
@@ -50,6 +53,7 @@ const PersonaSelector = ({
       description: "Waste management specialist",
       icon: <Recycle className="h-5 w-5" />,
       color: "#2C4A3E",
+      lightColor: "#2C4A3E",
     },
     {
       id: "nature",
@@ -57,6 +61,7 @@ const PersonaSelector = ({
       description: "Biodiversity & conservation expert",
       icon: <Droplets className="h-5 w-5" />,
       color: "#6AADCB",
+      lightColor: "#3A7D9B",
     },
     {
       id: "energy",
@@ -87,6 +92,7 @@ const PersonaSelector = ({
         </svg>
       ),
       color: "#F6C344",
+      lightColor: "#D6A324",
     },
     {
       id: "climate",
@@ -109,12 +115,13 @@ const PersonaSelector = ({
         </svg>
       ),
       color: "#5D93E1",
+      lightColor: "#3D73C1",
     },
   ];
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="text-sm font-medium mb-2 text-gray-300">
+      <div className="text-sm font-medium mb-2 text-foreground dark:text-gray-300">
         Choose Advisor
       </div>
 
@@ -124,46 +131,48 @@ const PersonaSelector = ({
             key={persona.id}
             onClick={() => onSelectPersona(persona.id)}
             className={cn(
-              "flex flex-col items-center p-3 rounded-md transition-all shadow-lg transform hover:scale-105",
+              "flex flex-col items-center p-3 rounded-md transition-all shadow-md transform hover:scale-105",
               selectedPersona === persona.id
-                ? `bg-opacity-20 border-2 border-[${persona.color}]`
-                : "bg-[#2C4A3E]/30 hover:bg-[#2C4A3E]/50",
+                ? "dark:bg-opacity-20 border-2 bg-white/80 dark:bg-transparent"
+                : "bg-gray-100 hover:bg-gray-200 dark:bg-[#2C4A3E]/30 dark:hover:bg-[#2C4A3E]/50",
             )}
             style={{
-              backgroundColor:
-                selectedPersona === persona.id ? `${persona.color}20` : "",
               borderColor:
-                selectedPersona === persona.id ? persona.color : "transparent",
+                selectedPersona === persona.id
+                  ? `var(--tw-prose-headings, ${persona.lightColor})`
+                  : "transparent",
               boxShadow:
                 selectedPersona === persona.id
-                  ? `0 4px 12px ${persona.color}40, inset 0 -2px 5px rgba(0,0,0,0.1)`
-                  : "0 4px 6px rgba(0,0,0,0.2), inset 0 -2px 5px rgba(0,0,0,0.1)",
-              transform: `translateY(${selectedPersona === persona.id ? "0" : "2px"})`,
+                  ? `0 4px 12px ${persona.lightColor}40, inset 0 -2px 5px rgba(0,0,0,0.05)`
+                  : "0 2px 4px rgba(0,0,0,0.1), inset 0 -2px 5px rgba(0,0,0,0.05)",
+              transform: `translateY(${selectedPersona === persona.id ? "0" : "1px"})`,
             }}
           >
             <div
-              className={"p-2 rounded-full mb-2"}
+              className={"p-2 rounded-full mb-2 transition-colors"}
               style={{
                 color:
-                  selectedPersona === persona.id ? persona.color : "#CBD5E1",
+                  selectedPersona === persona.id
+                    ? `var(--tw-prose-headings, ${persona.lightColor})`
+                    : "var(--muted-foreground, #64748b)",
                 background:
                   selectedPersona === persona.id
-                    ? `linear-gradient(135deg, ${persona.color}30, transparent)`
-                    : "linear-gradient(135deg, rgba(255,255,255,0.1), transparent)",
+                    ? `linear-gradient(135deg, ${persona.lightColor}20, transparent)`
+                    : "linear-gradient(135deg, rgba(255,255,255,0.2), transparent)",
                 boxShadow:
                   selectedPersona === persona.id
-                    ? `0 2px 8px ${persona.color}30`
-                    : "0 2px 4px rgba(0,0,0,0.1)",
+                    ? `0 2px 8px ${persona.lightColor}30`
+                    : "0 2px 4px rgba(0,0,0,0.05)",
               }}
             >
               {persona.icon}
             </div>
             <span
-              className="text-xs font-medium text-white"
+              className="text-xs font-medium text-foreground dark:text-white"
               style={{
                 textShadow:
                   selectedPersona === persona.id
-                    ? `0 0 8px ${persona.color}60`
+                    ? `0 0 8px ${persona.lightColor}30`
                     : "none",
               }}
             >

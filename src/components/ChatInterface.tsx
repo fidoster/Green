@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 import SettingsPanel from "./SettingsPanel";
@@ -39,6 +39,12 @@ interface ChatInterfaceProps {
   initialPersona?: PersonaType;
 }
 
+const LOCAL_STORAGE_KEYS = {
+  DELETED_CHATS: "deletedChats",
+  UNAUTHENTICATED_CHATS: "unauthenticatedChats",
+  HAS_SEEN_INTRO: "hasSeenIntro",
+};
+
 const ChatInterface = ({
   initialMessages = [
     {
@@ -49,23 +55,8 @@ const ChatInterface = ({
       timestamp: new Date(Date.now() - 60000),
       persona: "GreenBot",
     },
-    {
-      id: "2",
-      content: "I'd like to learn about renewable energy options for my home.",
-      sender: "user",
-      timestamp: new Date(Date.now() - 30000),
-    },
-    {
-      id: "3",
-      content:
-        "Great choice! Renewable energy for homes typically includes solar panels, small wind turbines, geothermal heat pumps, and biomass systems. Solar is the most common option, with decreasing installation costs and potential tax incentives. Would you like me to explain more about any specific renewable energy source?",
-      sender: "bot",
-      timestamp: new Date(),
-      persona: "GreenBot",
-    },
   ],
   initialChatHistory = [],
-
   initialPersona = "greenbot",
 }: ChatInterfaceProps) => {
   const { theme } = useTheme();
@@ -80,6 +71,7 @@ const ChatInterface = ({
   >(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Generate a title from the first user message
   const generateTitleFromContent = (content: string): string => {
@@ -223,6 +215,17 @@ const ChatInterface = ({
               : chat,
           ),
         );
+
+        // Also update local storage for unauthenticated users
+        if (!isAuthenticated) {
+          updateUnauthenticatedChats((prev) =>
+            prev.map((chat) =>
+              chat.id === currentConversationId
+                ? { ...chat, title, selected: true }
+                : chat,
+            ),
+          );
+        }
       }
 
       // Replace loading message with the actual response
@@ -322,6 +325,33 @@ const ChatInterface = ({
     }
   };
 
+  // Helper function to update unauthenticated chats in localStorage
+  const updateUnauthenticatedChats = (
+    updater: (prev: ChatHistoryItem[]) => ChatHistoryItem[],
+  ) => {
+    try {
+      // Get current chats from localStorage
+      const storedChats = localStorage.getItem(
+        LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+      );
+      const currentChats = storedChats ? JSON.parse(storedChats) : [];
+
+      // Apply the updater function
+      const updatedChats = updater(currentChats);
+
+      // Save back to localStorage
+      localStorage.setItem(
+        LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+        JSON.stringify(updatedChats),
+      );
+    } catch (error) {
+      console.error(
+        "Error updating unauthenticated chats in localStorage:",
+        error,
+      );
+    }
+  };
+
   const handleNewChat = async () => {
     try {
       // Save current conversation to history if it has messages
@@ -341,19 +371,42 @@ const ChatInterface = ({
             // Update existing conversation title if needed
             if (currentChat.title === "New Conversation") {
               await updateConversationTitle(currentConversationId, title);
+
+              // Update local history
+              setChatHistory((prev) =>
+                prev.map((chat) =>
+                  chat.id === currentConversationId ? { ...chat, title } : chat,
+                ),
+              );
+
+              // Update localStorage for unauthenticated users
+              if (!isAuthenticated) {
+                updateUnauthenticatedChats((prev) =>
+                  prev.map((chat) =>
+                    chat.id === currentConversationId
+                      ? { ...chat, title }
+                      : chat,
+                  ),
+                );
+              }
             }
-          } else {
+          } else if (!isAuthenticated) {
             // Create a local history item for non-authenticated users
             const newChatId = `local-chat-${Date.now()}`;
-            setChatHistory((prev) => [
-              ...prev.map((chat) => ({ ...chat, selected: false })),
+            const updatedHistory = [
+              ...chatHistory.map((chat) => ({ ...chat, selected: false })),
               {
                 id: newChatId,
                 title: title,
                 date: "Just now",
                 selected: false,
               },
-            ]);
+            ];
+
+            setChatHistory(updatedHistory);
+
+            // Save to localStorage
+            updateUnauthenticatedChats(() => updatedHistory);
           }
         }
       }
@@ -365,15 +418,20 @@ const ChatInterface = ({
 
         // Update chat history to unselect all and add new chat
         const newChatId = `local-chat-${Date.now()}`;
-        setChatHistory((prev) => [
+        const updatedHistory = [
           {
             id: newChatId,
             title: "New Conversation",
             date: "Just now",
             selected: true,
           },
-          ...prev.map((chat) => ({ ...chat, selected: false })),
-        ]);
+          ...chatHistory.map((chat) => ({ ...chat, selected: false })),
+        ];
+
+        setChatHistory(updatedHistory);
+
+        // Save to localStorage
+        updateUnauthenticatedChats(() => updatedHistory);
 
         // Reset messages with just a welcome message
         setMessages([
@@ -429,15 +487,22 @@ const ChatInterface = ({
         // Fallback to local chat if Supabase fails
         setCurrentConversationId(null);
         const newChatId = `local-chat-${Date.now()}`;
-        setChatHistory((prev) => [
+        const updatedHistory = [
           {
             id: newChatId,
             title: "New Conversation",
             date: "Just now",
             selected: true,
           },
-          ...prev.map((chat) => ({ ...chat, selected: false })),
-        ]);
+          ...chatHistory.map((chat) => ({ ...chat, selected: false })),
+        ];
+
+        setChatHistory(updatedHistory);
+
+        // Save to localStorage if unauthenticated
+        if (!isAuthenticated) {
+          updateUnauthenticatedChats(() => updatedHistory);
+        }
 
         setMessages([
           {
@@ -464,6 +529,16 @@ const ChatInterface = ({
           selected: chat.id === id,
         })),
       );
+
+      // Also update localStorage for unauthenticated users
+      if (!isAuthenticated) {
+        updateUnauthenticatedChats((prev) =>
+          prev.map((chat) => ({
+            ...chat,
+            selected: chat.id === id,
+          })),
+        );
+      }
 
       // Check if this is a local chat (not saved in Supabase)
       if (id.startsWith("local-") || !isAuthenticated) {
@@ -560,16 +635,31 @@ const ChatInterface = ({
   const handlePersonaChange = (persona: PersonaType) => {
     setCurrentPersona(persona);
 
-    // Add a system message indicating the persona change
+    // Instead of adding a message, replace the last bot message if it exists
     const botMessage: Message = {
-      id: `msg-${Date.now()}-bot`,
+      id: `persona-change-${Date.now()}`,
       content: getPersonaWelcomeMessage(persona),
       sender: "bot",
       timestamp: new Date(),
       persona: getPersonaDisplayName(persona),
     };
 
-    setMessages((prev) => [...prev, botMessage]);
+    // Find the last bot message and replace it, or add a new one if none exists
+    setMessages((prev) => {
+      const lastBotMessageIndex = [...prev]
+        .reverse()
+        .findIndex((msg) => msg.sender === "bot");
+
+      if (lastBotMessageIndex >= 0) {
+        // Replace the last bot message
+        const newMessages = [...prev];
+        newMessages[prev.length - 1 - lastBotMessageIndex] = botMessage;
+        return newMessages;
+      } else {
+        // No bot message found, just add a new one
+        return [...prev, botMessage];
+      }
+    });
 
     // If we have a current conversation, update its persona
     if (currentConversationId) {
@@ -599,7 +689,7 @@ const ChatInterface = ({
   // Filter out deleted chats from history
   const filterDeletedChats = (chats: ChatHistoryItem[]) => {
     const deletedChats = JSON.parse(
-      localStorage.getItem("deletedChats") || "[]",
+      localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
     );
     return chats.filter((chat) => !deletedChats.includes(chat.id));
   };
@@ -640,58 +730,40 @@ const ChatInterface = ({
             }
           } catch (loadError) {
             console.error("Error loading conversations:", loadError);
-            // Fallback to default chat history
-            setChatHistory(initialChatHistory);
-            setMessages(initialMessages);
+            // Create a new chat instead of falling back to default history
+            await handleNewChat();
           }
         } else {
-          // If not authenticated, use the default chat history
-          const defaultChats = [
-            {
-              id: "1",
-              title: "Renewable Energy Sources",
-              date: "2 hours ago",
-            },
-            {
-              id: "2",
-              title: "Carbon Footprint Reduction",
-              date: "1 day ago",
-              selected: true,
-            },
-            {
-              id: "3",
-              title: "Sustainable Gardening Tips",
-              date: "3 days ago",
-            },
-            {
-              id: "4",
-              title: "Ocean Plastic Solutions",
-              date: "1 week ago",
-            },
-          ];
-
-          setChatHistory(
-            filterDeletedChats(
-              initialChatHistory.length > 0 ? initialChatHistory : defaultChats,
-            ),
+          // For unauthenticated users, check if we have stored chats
+          const storedChats = localStorage.getItem(
+            LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
           );
-          setMessages(initialMessages);
+
+          if (storedChats) {
+            // Use stored chats if available
+            const parsedChats = JSON.parse(storedChats);
+            const filteredChats = filterDeletedChats(parsedChats);
+
+            setChatHistory(filteredChats);
+
+            // Load the first non-deleted chat if available
+            if (filteredChats.length > 0) {
+              const selectedChat =
+                filteredChats.find((chat) => chat.selected) || filteredChats[0];
+              await handleSelectChat(selectedChat.id);
+            } else {
+              // If all chats are deleted, create a new one
+              await handleNewChat();
+            }
+          } else {
+            // No stored chats, create a new one
+            await handleNewChat();
+          }
         }
       } catch (error) {
         console.error("Error checking authentication:", error);
-        // Fallback to default chat history on error
-        const defaultChats = [
-          { id: "1", title: "Renewable Energy Sources", date: "2 hours ago" },
-          {
-            id: "2",
-            title: "Carbon Footprint Reduction",
-            date: "1 day ago",
-            selected: true,
-          },
-          { id: "3", title: "Sustainable Gardening Tips", date: "3 days ago" },
-          { id: "4", title: "Ocean Plastic Solutions", date: "1 week ago" },
-        ];
-        setChatHistory(filterDeletedChats(defaultChats));
+        // Create a new chat instead of falling back to default history
+        await handleNewChat();
       } finally {
         setIsLoading(false);
       }
@@ -708,24 +780,32 @@ const ChatInterface = ({
         } else if (event === "SIGNED_OUT") {
           setIsAuthenticated(false);
           setCurrentConversationId(null);
-          // Reset to default chat history and messages
-          const defaultChats = [
-            { id: "1", title: "Renewable Energy Sources", date: "2 hours ago" },
-            {
-              id: "2",
-              title: "Carbon Footprint Reduction",
-              date: "1 day ago",
-              selected: true,
-            },
-            {
-              id: "3",
-              title: "Sustainable Gardening Tips",
-              date: "3 days ago",
-            },
-            { id: "4", title: "Ocean Plastic Solutions", date: "1 week ago" },
-          ];
-          setChatHistory(filterDeletedChats(defaultChats));
-          setMessages(initialMessages);
+
+          // Check for stored chats when signing out
+          const storedChats = localStorage.getItem(
+            LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+          );
+
+          if (storedChats) {
+            // Use stored chats if available
+            const parsedChats = JSON.parse(storedChats);
+            const filteredChats = filterDeletedChats(parsedChats);
+
+            setChatHistory(filteredChats);
+
+            // Load the first non-deleted chat if available
+            if (filteredChats.length > 0) {
+              const selectedChat =
+                filteredChats.find((chat) => chat.selected) || filteredChats[0];
+              await handleSelectChat(selectedChat.id);
+            } else {
+              // If all chats are deleted, create a new one
+              await handleNewChat();
+            }
+          } else {
+            // No stored chats, create a new one
+            await handleNewChat();
+          }
         }
       },
     );
@@ -754,6 +834,7 @@ const ChatInterface = ({
           onSendMessage={handleSendMessage}
           currentPersona={getPersonaDisplayName(currentPersona)}
           chatTitle={chatHistory.find((chat) => chat.selected)?.title}
+          messagesEndRef={messagesEndRef}
         />
       </div>
 

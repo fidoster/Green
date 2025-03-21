@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Droplet, Home, Leaf, Recycle, Send } from "lucide-react";
@@ -31,21 +31,27 @@ interface ChatAreaProps {
     | "Power Sage"
     | "Climate Guardian";
   chatTitle?: string;
+  messagesEndRef?: React.RefObject<HTMLDivElement>;
 }
 
 // Function to get a random sustainability fact
 const getSustainabilityFact = () => {
   const facts = [
-    "Using AI on renewable energy servers reduces carbon footprint by up to 90%.",
-    "One tree absorbs about 25kg of CO₂ per year - this chat just saved the equivalent of a day's work for a tree!",
-    "Green AI models use 70% less energy than traditional large language models.",
-    "Sustainable data centers can run on 100% renewable energy.",
-    "Energy-efficient AI processing saves enough electricity to power a home for a day.",
-    "Eco-friendly cloud computing reduces global IT emissions by millions of tons annually.",
-    "Using this chat instead of traditional AI saves enough energy to charge your phone 5 times.",
-    "Sustainable AI helps reduce global tech carbon emissions by up to 15%.",
-    "Green computing initiatives have reduced data center energy use by 40% since 2010.",
-    "Every eco-friendly chat contributes to a potential 5% reduction in AI's carbon footprint.",
+    "One mature tree absorbs approximately 48 pounds of CO₂ per year.",
+    "Around 80% of marine pollution comes from land-based activities.",
+    "Nearly 1/3 of all food produced worldwide is wasted, contributing to 8% of greenhouse gas emissions.",
+    "Bamboo can grow up to 35 inches in a single day, making it one of the most renewable resources.",
+    "LED lights use up to 90% less energy than incandescent bulbs and can last 25 times longer.",
+    "More than 1 billion people in the world don't have access to clean water.",
+    "Solar energy is the most abundant energy resource on Earth—173,000 terawatts strike Earth continuously.",
+    "The Great Pacific Garbage Patch is a collection of marine debris that's twice the size of Texas.",
+    "Recycling one aluminum can saves enough energy to run a TV for three hours.",
+    "The average American uses about 100 gallons of water per day.",
+    "Electric vehicles emit 54% fewer carbon emissions on average than gasoline-powered cars.",
+    "Indoor plants can remove up to 87% of air toxins within 24 hours.",
+    "Over 1 million seabirds and 100,000 marine mammals are killed by ocean pollution every year.",
+    "Organic farming uses up to 50% less energy than conventional farming methods.",
+    "The fashion industry is responsible for 10% of global carbon emissions, more than international flights and maritime shipping combined.",
   ];
 
   return facts[Math.floor(Math.random() * facts.length)];
@@ -79,30 +85,64 @@ const ChatArea = ({
   onSendMessage = (message) => console.log("Message sent:", message),
   currentPersona = "GreenBot",
   chatTitle = "New Conversation",
+  messagesEndRef,
 }: ChatAreaProps) => {
   const [inputValue, setInputValue] = useState("");
+  const [sustainabilityFact, setSustainabilityFact] = useState("");
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messageEndRef = useRef<HTMLDivElement>(null);
+
+  // Use provided ref or fallback to local ref
+  const endOfMessagesRef = messagesEndRef || messageEndRef;
+
+  // Set the sustainability fact only once when component mounts
+  useEffect(() => {
+    setSustainabilityFact(getSustainabilityFact());
+  }, []);
+
+  // Improved scroll to bottom function
+  const scrollToBottom = () => {
+    if (endOfMessagesRef.current) {
+      endOfMessagesRef.current.scrollIntoView({
+        behavior: "auto",
+        block: "end",
+      });
+    }
+
+    // Use the built-in scroll area methods if available
+    const scrollableNode = document.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (scrollableNode) {
+      scrollableNode.scrollTop = scrollableNode.scrollHeight;
+    }
+  };
+
+  // Auto-scroll to bottom when messages change
+  useLayoutEffect(() => {
+    // Immediate scroll attempt
+    scrollToBottom();
+
+    // Multiple scroll attempts with increasing delays
+    const timeoutIds = [
+      setTimeout(scrollToBottom, 50),
+      setTimeout(scrollToBottom, 200),
+      setTimeout(scrollToBottom, 500),
+    ];
+
+    return () => {
+      timeoutIds.forEach((id) => clearTimeout(id));
+    };
+  }, [messages]);
 
   const handleSendMessage = () => {
     if (inputValue.trim()) {
       onSendMessage(inputValue);
       setInputValue("");
 
-      // Auto-scroll to bottom after sending message with multiple attempts
-      const scrollToBottom = () => {
-        const scrollableNode = document.querySelector(
-          "[data-radix-scroll-area-viewport]",
-        );
-        if (scrollableNode) {
-          scrollableNode.scrollTop = scrollableNode.scrollHeight;
-        }
-      };
-
-      // Execute scroll multiple times to ensure it happens
-      scrollToBottom();
+      // Schedule multiple scroll attempts after sending
       setTimeout(scrollToBottom, 100);
       setTimeout(scrollToBottom, 300);
-      setTimeout(scrollToBottom, 500);
-      setTimeout(scrollToBottom, 1000);
     }
   };
 
@@ -112,55 +152,6 @@ const ChatArea = ({
       handleSendMessage();
     }
   };
-
-  // Auto-scroll to bottom when messages change
-  React.useEffect(() => {
-    const scrollToBottom = () => {
-      const scrollableNode = document.querySelector(
-        "[data-radix-scroll-area-viewport]",
-      );
-      if (scrollableNode) {
-        scrollableNode.scrollTop = scrollableNode.scrollHeight;
-      }
-    };
-
-    // Execute scroll multiple times to ensure it happens after all renders and animations
-    scrollToBottom();
-    const timeoutIds = [
-      setTimeout(scrollToBottom, 50),
-      setTimeout(scrollToBottom, 100),
-      setTimeout(scrollToBottom, 200),
-      setTimeout(scrollToBottom, 500),
-      setTimeout(scrollToBottom, 1000),
-      setTimeout(scrollToBottom, 1500),
-    ];
-
-    // Set up a mutation observer to detect new messages and scroll down
-    const messagesContainer = document.getElementById(
-      "chat-messages-container",
-    );
-    if (messagesContainer) {
-      const observer = new MutationObserver(() => {
-        scrollToBottom();
-      });
-
-      observer.observe(messagesContainer, {
-        childList: true,
-        subtree: true,
-        attributes: false,
-        characterData: true,
-      });
-
-      return () => {
-        observer.disconnect();
-        timeoutIds.forEach((id) => clearTimeout(id));
-      };
-    }
-
-    return () => {
-      timeoutIds.forEach((id) => clearTimeout(id));
-    };
-  }, [messages]);
 
   return (
     <div className="flex flex-col h-full bg-[#F5F5F5] dark:bg-[#2A3130]">
@@ -258,14 +249,14 @@ const ChatArea = ({
         </div>
       </div>
 
-      {/* Chat messages area */}
+      {/* Chat messages area - using ScrollArea component */}
       <ScrollArea
         className="flex-1 p-4"
         id="chat-messages-container"
-        scrollable={true}
         type="always"
       >
         <div className="flex flex-col space-y-4">
+          <div className="flex-grow min-h-[50vh]"></div>
           {messages.map((message) => (
             <div
               key={message.id}
@@ -379,6 +370,8 @@ const ChatArea = ({
               </div>
             </div>
           ))}
+          {/* Invisible element to scroll to */}
+          <div ref={endOfMessagesRef} />
         </div>
       </ScrollArea>
 
@@ -456,15 +449,7 @@ const ChatArea = ({
           </Button>
         </div>
         <div className="flex items-center justify-center mt-2 text-xs text-[#8BA888] dark:text-[#98C9A3]">
-          <img
-            src="https://i.ibb.co/Jt2kDPQ/eco-logo.png"
-            alt="Eco-friendly AI"
-            className="h-5 w-5 mr-2"
-          />
-          <span>
-            💚 This chat saved 0.02kg CO₂ compared to traditional AI -{" "}
-            {getSustainabilityFact()}
-          </span>
+          <span>💚 {sustainabilityFact}</span>
         </div>
       </div>
     </div>
