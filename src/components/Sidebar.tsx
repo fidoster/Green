@@ -14,6 +14,12 @@ import { cn } from "../lib/utils";
 import PersonaSelector, { PersonaType } from "./PersonaSelector";
 import { ThemeToggle } from "./ThemeToggle";
 
+// Define consistent localStorage keys
+const LOCAL_STORAGE_KEYS = {
+  DELETED_CHATS: "deletedChats",
+  UNAUTHENTICATED_CHATS: "unauthenticatedChats",
+};
+
 interface ChatHistoryItem {
   id: string;
   title: string;
@@ -52,15 +58,50 @@ const Sidebar = ({
 }: SidebarProps) => {
   const [history, setHistory] = useState<ChatHistoryItem[]>(chatHistory);
 
-  // Update local history when chatHistory prop changes
+  // Clean up deleted chats on component mount
   useEffect(() => {
-    setHistory(chatHistory);
+    try {
+      // Get deleted chat IDs
+      const deletedChatIds = JSON.parse(
+        localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
+      );
+
+      // Filter out any deleted chats from the history
+      if (deletedChatIds.length > 0) {
+        const filteredHistory = chatHistory.filter(
+          (chat) => !deletedChatIds.includes(chat.id),
+        );
+        setHistory(filteredHistory);
+      }
+    } catch (error) {
+      console.error("Error cleaning up deleted chats:", error);
+    }
+  }, []);
+
+  // Update local history when chatHistory prop changes, but filter out deleted chats
+  useEffect(() => {
+    try {
+      const deletedChatIds = JSON.parse(
+        localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
+      );
+
+      const filteredHistory = chatHistory.filter(
+        (chat) => !deletedChatIds.includes(chat.id),
+      );
+
+      setHistory(filteredHistory);
+    } catch (error) {
+      console.error("Error filtering chat history:", error);
+      setHistory(chatHistory);
+    }
   }, [chatHistory]);
+
   const [selectedPersona, setSelectedPersona] =
     useState<PersonaType>(initialPersona);
 
   const handleDeleteChat = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
     // Update local state
     setHistory(history.filter((chat) => chat.id !== id));
 
@@ -73,12 +114,37 @@ const Sidebar = ({
       }
     }
 
-    // Store deleted chat IDs in localStorage to persist across refreshes
-    const deletedChats = JSON.parse(
-      localStorage.getItem("deletedChats") || "[]",
-    );
-    deletedChats.push(id);
-    localStorage.setItem("deletedChats", JSON.stringify(deletedChats));
+    try {
+      // Store deleted chat IDs in localStorage to persist across refreshes
+      const deletedChats = JSON.parse(
+        localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
+      );
+
+      // Only add if not already in the list
+      if (!deletedChats.includes(id)) {
+        deletedChats.push(id);
+        localStorage.setItem(
+          LOCAL_STORAGE_KEYS.DELETED_CHATS,
+          JSON.stringify(deletedChats),
+        );
+      }
+
+      // Also remove from unauthenticated chats if present
+      const unauthenticatedChats = JSON.parse(
+        localStorage.getItem(LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS) || "[]",
+      );
+
+      const updatedChats = unauthenticatedChats.filter(
+        (chat) => chat.id !== id,
+      );
+
+      localStorage.setItem(
+        LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+        JSON.stringify(updatedChats),
+      );
+    } catch (error) {
+      console.error("Error updating chat storage:", error);
+    }
   };
 
   const handlePersonaChange = (persona: PersonaType) => {
