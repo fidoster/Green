@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 import SettingsPanel from "./SettingsPanel";
+import QuizButton from "./QuizButton";
+import QuizInterface from "./QuizInterface";
 import { PersonaType } from "./PersonaSelector";
 import { useTheme } from "./ThemeProvider";
 import { supabase } from "../lib/supabase";
@@ -71,6 +73,7 @@ const ChatInterface = ({
   >(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Function to filter out deleted chats
@@ -891,12 +894,25 @@ const ChatInterface = ({
 
       {/* Chat Area */}
       <div className="flex-1 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col">
+            <h2 className="text-lg font-medium">GreenBot</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {chatHistory.find((chat) => chat.selected)?.title ||
+                "New Conversation"}
+            </p>
+          </div>
+          <QuizButton
+            currentPersona={getPersonaDisplayName(currentPersona)}
+            onStartQuiz={() => setIsQuizOpen(true)}
+          />
+        </div>
         <ChatArea
           messages={messages}
           onSendMessage={handleSendMessage}
           currentPersona={getPersonaDisplayName(currentPersona)}
-          chatTitle={chatHistory.find((chat) => chat.selected)?.title}
           messagesEndRef={messagesEndRef}
+          chatTitle="" // Set empty string to avoid duplicate title
         />
       </div>
 
@@ -907,6 +923,14 @@ const ChatInterface = ({
           onClose={() => setIsSettingsOpen(false)}
         />
       )}
+
+      {/* Quiz Interface */}
+      <QuizInterface
+        isOpen={isQuizOpen}
+        onClose={() => setIsQuizOpen(false)}
+        persona={getPersonaDisplayName(currentPersona)}
+        isAuthenticated={isAuthenticated}
+      />
     </div>
   );
 };
