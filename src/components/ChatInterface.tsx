@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 import SettingsPanel from "./SettingsPanel";
-import QuizButton from "./QuizButton";
-import QuizInterface from "./QuizInterface";
 import { PersonaType } from "./PersonaSelector";
 import { useTheme } from "./ThemeProvider";
 import { supabase } from "../lib/supabase";
@@ -73,7 +71,6 @@ const ChatInterface = ({
   >(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isQuizOpen, setIsQuizOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Function to filter out deleted chats
@@ -88,18 +85,10 @@ const ChatInterface = ({
   const generateTitleFromContent = (content: string): string => {
     // Take the first 30 characters or the first sentence, whichever is shorter
     const firstSentence = content.split(/[.!?]\s/)[0];
-    let shortTitle =
+    const shortTitle =
       firstSentence.length > 30
         ? firstSentence.substring(0, 30) + "..."
         : firstSentence;
-
-    // Ensure the title is not too short
-    if (shortTitle.length < 10 && content.length > 10) {
-      shortTitle =
-        content.substring(0, Math.min(30, content.length)) +
-        (content.length > 30 ? "..." : "");
-    }
-
     return shortTitle;
   };
 
@@ -221,37 +210,29 @@ const ChatInterface = ({
       // Save the conversation to Supabase and update chat title if it's a new conversation
       await saveConversationToSupabase(userMessage, botMessage, currentPersona);
 
-      // Always update chat title when a user sends a message if the title is "New Conversation"
-      if (currentConversationId) {
-        const currentChat = chatHistory.find(
-          (chat) => chat.id === currentConversationId,
-        );
-        if (
-          currentChat &&
-          (currentChat.title === "New Conversation" || messages.length <= 2)
-        ) {
-          const title = generateTitleFromContent(content);
-          await updateConversationTitle(currentConversationId, title);
+      // Update chat title if this is the first message in a new conversation
+      if (messages.length <= 2 && currentConversationId) {
+        const title = generateTitleFromContent(content);
+        await updateConversationTitle(currentConversationId, title);
 
-          // Update the chat history with the new title
-          setChatHistory((prev) =>
+        // Update the chat history with the new title
+        setChatHistory((prev) =>
+          prev.map((chat) =>
+            chat.id === currentConversationId
+              ? { ...chat, title, selected: true }
+              : chat,
+          ),
+        );
+
+        // Also update local storage for unauthenticated users
+        if (!isAuthenticated) {
+          updateUnauthenticatedChats((prev) =>
             prev.map((chat) =>
               chat.id === currentConversationId
                 ? { ...chat, title, selected: true }
                 : chat,
             ),
           );
-
-          // Also update local storage for unauthenticated users
-          if (!isAuthenticated) {
-            updateUnauthenticatedChats((prev) =>
-              prev.map((chat) =>
-                chat.id === currentConversationId
-                  ? { ...chat, title, selected: true }
-                  : chat,
-              ),
-            );
-          }
         }
       }
 
@@ -367,26 +348,18 @@ const ChatInterface = ({
       const updatedChats = updater(currentChats);
 
       // Filter out deleted chats
-      const deletedChats = JSON.parse(
-        localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
-      );
-      const filteredChats = updatedChats.filter(
-        (chat) => !deletedChats.includes(chat.id),
-      );
+      const filteredChats = filterDeletedChats(updatedChats);
 
       // Save back to localStorage
       localStorage.setItem(
         LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
         JSON.stringify(filteredChats),
       );
-
-      return filteredChats;
     } catch (error) {
       console.error(
         "Error updating unauthenticated chats in localStorage:",
         error,
       );
-      return [];
     }
   };
 
@@ -727,38 +700,6 @@ const ChatInterface = ({
     }
   };
 
-  // Clear any orphaned chats on component mount
-  useEffect(() => {
-    // Clean up any potential orphaned chats
-    const cleanupOrphanedChats = () => {
-      try {
-        const deletedChats = JSON.parse(
-          localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
-        );
-        const unauthenticatedChats = JSON.parse(
-          localStorage.getItem(LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS) ||
-            "[]",
-        );
-
-        // Ensure all deleted chats are actually removed from unauthenticated chats
-        const filteredChats = unauthenticatedChats.filter(
-          (chat) => !deletedChats.includes(chat.id),
-        );
-
-        if (filteredChats.length !== unauthenticatedChats.length) {
-          localStorage.setItem(
-            LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
-            JSON.stringify(filteredChats),
-          );
-        }
-      } catch (error) {
-        console.error("Error cleaning up orphaned chats:", error);
-      }
-    };
-
-    cleanupOrphanedChats();
-  }, []);
-
   // Effect to check authentication and load conversations
   useEffect(() => {
     const checkAuth = async () => {
@@ -894,25 +835,12 @@ const ChatInterface = ({
 
       {/* Chat Area */}
       <div className="flex-1 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col">
-            <h2 className="text-lg font-medium">GreenBot</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {chatHistory.find((chat) => chat.selected)?.title ||
-                "New Conversation"}
-            </p>
-          </div>
-          <QuizButton
-            currentPersona={getPersonaDisplayName(currentPersona)}
-            onStartQuiz={() => setIsQuizOpen(true)}
-          />
-        </div>
         <ChatArea
           messages={messages}
           onSendMessage={handleSendMessage}
           currentPersona={getPersonaDisplayName(currentPersona)}
+          chatTitle={chatHistory.find((chat) => chat.selected)?.title}
           messagesEndRef={messagesEndRef}
-          chatTitle="" // Set empty string to avoid duplicate title
         />
       </div>
 
@@ -923,14 +851,6 @@ const ChatInterface = ({
           onClose={() => setIsSettingsOpen(false)}
         />
       )}
-
-      {/* Quiz Interface */}
-      <QuizInterface
-        isOpen={isQuizOpen}
-        onClose={() => setIsQuizOpen(false)}
-        persona={getPersonaDisplayName(currentPersona)}
-        isAuthenticated={isAuthenticated}
-      />
     </div>
   );
 };

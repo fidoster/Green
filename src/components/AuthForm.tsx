@@ -43,19 +43,12 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
                   colors: {
                     brand: "#2C4A3E",
                     brandAccent: "#8BA888",
-                    inputText: "var(--foreground)",
-                    inputLabelText: "var(--foreground)",
-                    inputPlaceholder: "var(--muted-foreground)",
                   },
                 },
               },
               className: {
                 button: "bg-[#2C4A3E] hover:bg-[#8BA888] text-white",
-                anchor:
-                  "text-[#2C4A3E] hover:text-[#8BA888] dark:text-[#8BA888] dark:hover:text-[#98C9A3]",
-                label: "text-[#2C4A3E] dark:text-white",
-                input:
-                  "bg-white dark:bg-[#343C3B] text-[#2F3635] dark:text-white border-[#E0E0E0] dark:border-[#4A5250]",
+                anchor: "text-[#2C4A3E] hover:text-[#8BA888]",
               },
             }}
             providers={[]}
