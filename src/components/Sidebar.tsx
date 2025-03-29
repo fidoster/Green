@@ -14,6 +14,12 @@ import { cn } from "../lib/utils";
 import PersonaSelector, { PersonaType } from "./PersonaSelector";
 import { ThemeToggle } from "./ThemeToggle";
 
+// Define consistent localStorage keys
+const LOCAL_STORAGE_KEYS = {
+  DELETED_CHATS: "deletedChats",
+  UNAUTHENTICATED_CHATS: "unauthenticatedChats",
+};
+
 interface ChatHistoryItem {
   id: string;
   title: string;
@@ -35,32 +41,42 @@ const Sidebar = ({
   onNewChat = () => {},
   onSelectChat = () => {},
   onOpenSettings = () => {},
-  chatHistory = [
-    { id: "1", title: "Renewable Energy Sources", date: "2 hours ago" },
-    {
-      id: "2",
-      title: "Carbon Footprint Reduction",
-      date: "1 day ago",
-      selected: true,
-    },
-    { id: "3", title: "Sustainable Gardening Tips", date: "3 days ago" },
-    { id: "4", title: "Ocean Plastic Solutions", date: "1 week ago" },
-  ],
+  chatHistory = [], // Default to empty array instead of sample items
   className,
   initialPersona = "greenbot",
   onSelectPersona = () => {},
 }: SidebarProps) => {
-  const [history, setHistory] = useState<ChatHistoryItem[]>(chatHistory);
-
-  // Update local history when chatHistory prop changes
-  useEffect(() => {
-    setHistory(chatHistory);
-  }, [chatHistory]);
+  const [history, setHistory] = useState<ChatHistoryItem[]>([]);
   const [selectedPersona, setSelectedPersona] =
     useState<PersonaType>(initialPersona);
 
+  // Function to get deleted chats from localStorage
+  const getDeletedChats = (): string[] => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
+      );
+    } catch (error) {
+      console.error("Error getting deleted chats:", error);
+      return [];
+    }
+  };
+
+  // Function to filter out deleted chats
+  const filterDeletedChats = (chats: ChatHistoryItem[]): ChatHistoryItem[] => {
+    const deletedChats = getDeletedChats();
+    return chats.filter((chat) => !deletedChats.includes(chat.id));
+  };
+
+  // Clean up deleted chats on component mount and when chatHistory changes
+  useEffect(() => {
+    const filteredHistory = filterDeletedChats(chatHistory);
+    setHistory(filteredHistory);
+  }, [chatHistory]);
+
   const handleDeleteChat = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
     // Update local state
     setHistory(history.filter((chat) => chat.id !== id));
 
@@ -70,15 +86,46 @@ const Sidebar = ({
       const remainingChats = history.filter((chat) => chat.id !== id);
       if (remainingChats.length > 0) {
         onSelectChat(remainingChats[0].id);
+      } else {
+        // If no chats remaining, create a new one
+        onNewChat();
       }
     }
 
-    // Store deleted chat IDs in localStorage to persist across refreshes
-    const deletedChats = JSON.parse(
-      localStorage.getItem("deletedChats") || "[]",
-    );
-    deletedChats.push(id);
-    localStorage.setItem("deletedChats", JSON.stringify(deletedChats));
+    try {
+      // Store deleted chat IDs in localStorage to persist across refreshes
+      const deletedChats = getDeletedChats();
+
+      // Only add if not already in the list
+      if (!deletedChats.includes(id)) {
+        deletedChats.push(id);
+        localStorage.setItem(
+          LOCAL_STORAGE_KEYS.DELETED_CHATS,
+          JSON.stringify(deletedChats),
+        );
+      }
+
+      // Also update unauthenticated chats in localStorage
+      const storedChats = localStorage.getItem(
+        LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+      );
+      if (storedChats) {
+        try {
+          const parsedChats = JSON.parse(storedChats);
+          const filteredChats = parsedChats.filter(
+            (chat: any) => chat.id !== id,
+          );
+          localStorage.setItem(
+            LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+            JSON.stringify(filteredChats),
+          );
+        } catch (error) {
+          console.error("Error updating unauthenticated chats:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Error updating chat storage:", error);
+    }
   };
 
   const handlePersonaChange = (persona: PersonaType) => {
@@ -124,36 +171,42 @@ const Sidebar = ({
 
       <ScrollArea className="flex-1 -mx-4 px-4">
         <div className="space-y-2">
-          {history.map((chat) => (
-            <div
-              key={chat.id}
-              onClick={() => onSelectChat(chat.id)}
-              className={cn(
-                "flex items-center justify-between p-3 rounded-md cursor-pointer group",
-                chat.selected
-                  ? "bg-gray-200 dark:bg-[#2C4A3E]"
-                  : "hover:bg-gray-100 dark:hover:bg-[#2C4A3E]/50",
-              )}
-            >
-              <div className="flex flex-col overflow-hidden">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 flex-shrink-0 text-[#4B9460] dark:text-[#98C9A3]" />
-                  <div className="truncate">{chat.title}</div>
-                </div>
-                <div className="ml-6 text-xs text-gray-500 dark:text-gray-400">
-                  {chat.date}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-[#2C4A3E]"
-                onClick={(e) => handleDeleteChat(chat.id, e)}
+          {history.length > 0 ? (
+            history.map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => onSelectChat(chat.id)}
+                className={cn(
+                  "flex items-center justify-between p-3 rounded-md cursor-pointer group",
+                  chat.selected
+                    ? "bg-gray-200 dark:bg-[#2C4A3E]"
+                    : "hover:bg-gray-100 dark:hover:bg-[#2C4A3E]/50",
+                )}
               >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+                <div className="flex flex-col overflow-hidden">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 flex-shrink-0 text-[#4B9460] dark:text-[#98C9A3]" />
+                    <div className="truncate">{chat.title}</div>
+                  </div>
+                  <div className="ml-6 text-xs text-gray-500 dark:text-gray-400">
+                    {chat.date}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-[#2C4A3E]"
+                  onClick={(e) => handleDeleteChat(chat.id, e)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+              No chat history. Start a new conversation!
             </div>
-          ))}
+          )}
         </div>
       </ScrollArea>
 

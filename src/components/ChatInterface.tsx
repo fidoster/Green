@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 import SettingsPanel from "./SettingsPanel";
+import QuizButton from "./QuizButton";
+import QuizInterface from "./QuizInterface";
 import { PersonaType } from "./PersonaSelector";
 import { useTheme } from "./ThemeProvider";
 import { supabase } from "../lib/supabase";
@@ -45,6 +47,8 @@ const LOCAL_STORAGE_KEYS = {
   HAS_SEEN_INTRO: "hasSeenIntro",
 };
 
+// Update this portion of the ChatInterface component to remove default initialChatHistory
+
 const ChatInterface = ({
   initialMessages = [
     {
@@ -56,7 +60,7 @@ const ChatInterface = ({
       persona: "GreenBot",
     },
   ],
-  initialChatHistory = [],
+  initialChatHistory = [], // Change this to an empty array instead of sample items
   initialPersona = "greenbot",
 }: ChatInterfaceProps) => {
   const { theme } = useTheme();
@@ -71,13 +75,24 @@ const ChatInterface = ({
   >(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Function to get deleted chats from localStorage
+  const getDeletedChats = (): string[] => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
+      );
+    } catch (error) {
+      console.error("Error getting deleted chats:", error);
+      return [];
+    }
+  };
 
   // Function to filter out deleted chats
   const filterDeletedChats = (chats: ChatHistoryItem[]): ChatHistoryItem[] => {
-    const deletedChats = JSON.parse(
-      localStorage.getItem(LOCAL_STORAGE_KEYS.DELETED_CHATS) || "[]",
-    );
+    const deletedChats = getDeletedChats();
     return chats.filter((chat) => !deletedChats.includes(chat.id));
   };
 
@@ -85,10 +100,18 @@ const ChatInterface = ({
   const generateTitleFromContent = (content: string): string => {
     // Take the first 30 characters or the first sentence, whichever is shorter
     const firstSentence = content.split(/[.!?]\s/)[0];
-    const shortTitle =
+    let shortTitle =
       firstSentence.length > 30
         ? firstSentence.substring(0, 30) + "..."
         : firstSentence;
+
+    // Ensure the title is not too short
+    if (shortTitle.length < 10 && content.length > 10) {
+      shortTitle =
+        content.substring(0, Math.min(30, content.length)) +
+        (content.length > 30 ? "..." : "");
+    }
+
     return shortTitle;
   };
 
@@ -210,29 +233,37 @@ const ChatInterface = ({
       // Save the conversation to Supabase and update chat title if it's a new conversation
       await saveConversationToSupabase(userMessage, botMessage, currentPersona);
 
-      // Update chat title if this is the first message in a new conversation
-      if (messages.length <= 2 && currentConversationId) {
-        const title = generateTitleFromContent(content);
-        await updateConversationTitle(currentConversationId, title);
-
-        // Update the chat history with the new title
-        setChatHistory((prev) =>
-          prev.map((chat) =>
-            chat.id === currentConversationId
-              ? { ...chat, title, selected: true }
-              : chat,
-          ),
+      // Always update chat title when a user sends a message if the title is "New Conversation"
+      if (currentConversationId) {
+        const currentChat = chatHistory.find(
+          (chat) => chat.id === currentConversationId,
         );
+        if (
+          currentChat &&
+          (currentChat.title === "New Conversation" || messages.length <= 2)
+        ) {
+          const title = generateTitleFromContent(content);
+          await updateConversationTitle(currentConversationId, title);
 
-        // Also update local storage for unauthenticated users
-        if (!isAuthenticated) {
-          updateUnauthenticatedChats((prev) =>
+          // Update the chat history with the new title
+          setChatHistory((prev) =>
             prev.map((chat) =>
               chat.id === currentConversationId
                 ? { ...chat, title, selected: true }
                 : chat,
             ),
           );
+
+          // Also update local storage for unauthenticated users
+          if (!isAuthenticated) {
+            updateUnauthenticatedChats((prev) =>
+              prev.map((chat) =>
+                chat.id === currentConversationId
+                  ? { ...chat, title, selected: true }
+                  : chat,
+              ),
+            );
+          }
         }
       }
 
@@ -348,18 +379,24 @@ const ChatInterface = ({
       const updatedChats = updater(currentChats);
 
       // Filter out deleted chats
-      const filteredChats = filterDeletedChats(updatedChats);
+      const deletedChats = getDeletedChats();
+      const filteredChats = updatedChats.filter(
+        (chat) => !deletedChats.includes(chat.id),
+      );
 
       // Save back to localStorage
       localStorage.setItem(
         LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
         JSON.stringify(filteredChats),
       );
+
+      return filteredChats;
     } catch (error) {
       console.error(
         "Error updating unauthenticated chats in localStorage:",
         error,
       );
+      return [];
     }
   };
 
@@ -471,15 +508,18 @@ const ChatInterface = ({
         setCurrentConversationId(newConversation.id);
 
         // Update chat history to unselect all and add new chat
-        setChatHistory((prev) => [
-          {
-            id: newConversation.id,
-            title: newConversation.title,
-            date: "Just now",
-            selected: true,
-          },
-          ...prev.map((chat) => ({ ...chat, selected: false })),
-        ]);
+        setChatHistory((prev) => {
+          const filteredPrev = filterDeletedChats(prev);
+          return [
+            {
+              id: newConversation.id,
+              title: newConversation.title,
+              date: "Just now",
+              selected: true,
+            },
+            ...filteredPrev.map((chat) => ({ ...chat, selected: false })),
+          ];
+        });
 
         // Reset messages with just a welcome message
         const welcomeMessage = {
@@ -700,6 +740,41 @@ const ChatInterface = ({
     }
   };
 
+  // Cleanup and initialize
+  useEffect(() => {
+    // Make sure deleted chats are properly removed at startup
+    const cleanupDeletedChats = () => {
+      const deletedChats = getDeletedChats();
+
+      // Clean up unauthenticated chats
+      const storedChats = localStorage.getItem(
+        LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+      );
+      if (storedChats) {
+        try {
+          const parsedChats = JSON.parse(storedChats);
+          const filteredChats = parsedChats.filter(
+            (chat: ChatHistoryItem) => !deletedChats.includes(chat.id),
+          );
+
+          if (filteredChats.length !== parsedChats.length) {
+            localStorage.setItem(
+              LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+              JSON.stringify(filteredChats),
+            );
+          }
+        } catch (error) {
+          console.error("Error cleaning up unauthenticated chats:", error);
+        }
+      }
+
+      // Also apply the filter to the current chat history
+      setChatHistory(filterDeletedChats(chatHistory));
+    };
+
+    cleanupDeletedChats();
+  }, []);
+
   // Effect to check authentication and load conversations
   useEffect(() => {
     const checkAuth = async () => {
@@ -715,8 +790,28 @@ const ChatInterface = ({
             // Load conversations from Supabase
             const conversations = await getConversations();
 
-            if (conversations && conversations.length > 0) {
-              // Map conversations to chat history items
+            // Check if this might be a new user (with no conversations yet)
+            if (!conversations || conversations.length === 0) {
+              // Create a fresh, clean state for new users
+              setChatHistory([]);
+              setCurrentConversationId(null);
+
+              // Set a single welcome message
+              setMessages([
+                {
+                  id: `welcome-${Date.now()}`,
+                  content:
+                    "Hello! I'm GreenBot, your sustainable AI assistant. How can I help you with environmental topics today?",
+                  sender: "bot",
+                  timestamp: new Date(),
+                  persona: getPersonaDisplayName(currentPersona),
+                },
+              ]);
+
+              // Create first conversation for the new user
+              await handleNewChat();
+            } else {
+              // Existing user, load their conversations
               const chatHistoryItems = conversations.map((conv, index) => ({
                 id: conv.id,
                 title: conv.title || "Untitled Conversation",
@@ -724,19 +819,23 @@ const ChatInterface = ({
                 selected: index === 0, // Select the first conversation
               }));
 
-              setChatHistory(filterDeletedChats(chatHistoryItems));
+              // Apply the deletedChats filter to ensure consistency
+              const filteredItems = filterDeletedChats(chatHistoryItems);
+              setChatHistory(filteredItems);
 
-              // Load the first conversation
-              if (chatHistoryItems.length > 0) {
-                await handleSelectChat(chatHistoryItems[0].id);
+              // Load the first conversation if available
+              if (filteredItems.length > 0) {
+                await handleSelectChat(filteredItems[0].id);
+              } else {
+                // If no conversations after filtering, create a new one
+                setChatHistory([]); // Explicitly set to empty array
+                await handleNewChat();
               }
-            } else {
-              // If no conversations, create a new one
-              await handleNewChat();
             }
           } catch (loadError) {
             console.error("Error loading conversations:", loadError);
             // Create a new chat instead of falling back to default history
+            setChatHistory([]); // Explicitly set to empty array
             await handleNewChat();
           }
         } else {
@@ -746,29 +845,39 @@ const ChatInterface = ({
           );
 
           if (storedChats) {
-            // Use stored chats if available
-            const parsedChats = JSON.parse(storedChats);
-            const filteredChats = filterDeletedChats(parsedChats);
+            try {
+              // Use stored chats if available, but filter out deleted ones
+              const parsedChats = JSON.parse(storedChats);
+              const filteredChats = filterDeletedChats(parsedChats);
 
-            setChatHistory(filteredChats);
+              if (filteredChats.length > 0) {
+                setChatHistory(filteredChats);
 
-            // Load the first non-deleted chat if available
-            if (filteredChats.length > 0) {
-              const selectedChat =
-                filteredChats.find((chat) => chat.selected) || filteredChats[0];
-              await handleSelectChat(selectedChat.id);
-            } else {
-              // If all chats are deleted, create a new one
+                // Load the first non-deleted chat if available
+                const selectedChat =
+                  filteredChats.find((chat) => chat.selected) ||
+                  filteredChats[0];
+                await handleSelectChat(selectedChat.id);
+              } else {
+                // If no chats after filtering, start with a clean state
+                setChatHistory([]);
+                await handleNewChat();
+              }
+            } catch (parseError) {
+              console.error("Error parsing stored chats:", parseError);
+              setChatHistory([]); // Explicitly set to empty array
               await handleNewChat();
             }
           } else {
-            // No stored chats, create a new one
+            // No stored chats, create a new one with clean history
+            setChatHistory([]);
             await handleNewChat();
           }
         }
       } catch (error) {
         console.error("Error checking authentication:", error);
         // Create a new chat instead of falling back to default history
+        setChatHistory([]);
         await handleNewChat();
       } finally {
         setIsLoading(false);
@@ -793,23 +902,32 @@ const ChatInterface = ({
           );
 
           if (storedChats) {
-            // Use stored chats if available
-            const parsedChats = JSON.parse(storedChats);
-            const filteredChats = filterDeletedChats(parsedChats);
+            try {
+              // Use stored chats if available, but filter out deleted ones
+              const parsedChats = JSON.parse(storedChats);
+              const filteredChats = filterDeletedChats(parsedChats);
 
-            setChatHistory(filteredChats);
+              if (filteredChats.length > 0) {
+                setChatHistory(filteredChats);
 
-            // Load the first non-deleted chat if available
-            if (filteredChats.length > 0) {
-              const selectedChat =
-                filteredChats.find((chat) => chat.selected) || filteredChats[0];
-              await handleSelectChat(selectedChat.id);
-            } else {
-              // If all chats are deleted, create a new one
+                // Load the first non-deleted chat if available
+                const selectedChat =
+                  filteredChats.find((chat) => chat.selected) ||
+                  filteredChats[0];
+                await handleSelectChat(selectedChat.id);
+              } else {
+                // If all chats are deleted, create a new one
+                setChatHistory([]);
+                await handleNewChat();
+              }
+            } catch (parseError) {
+              console.error("Error parsing stored chats:", parseError);
+              setChatHistory([]);
               await handleNewChat();
             }
           } else {
             // No stored chats, create a new one
+            setChatHistory([]);
             await handleNewChat();
           }
         }
@@ -820,7 +938,6 @@ const ChatInterface = ({
       authListener.subscription.unsubscribe();
     };
   }, []);
-
   return (
     <div className="flex h-screen w-full bg-[#F5F5F5] dark:bg-[#2A3130]">
       {/* Sidebar */}
