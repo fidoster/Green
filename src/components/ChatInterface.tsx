@@ -56,6 +56,8 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentConversationId, setCurrentConversationId] =
+    useState<string>("default");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversations from local storage or database when component mounts
@@ -87,6 +89,7 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
             // Set the first conversation as selected
             if (formattedHistory.length > 0) {
               formattedHistory[0].selected = true;
+              setCurrentConversationId(formattedHistory[0].id);
 
               // Load messages for the selected conversation
               const { data: messagesData, error: messagesError } =
@@ -96,16 +99,30 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
                   .eq("conversation_id", formattedHistory[0].id)
                   .order("created_at", { ascending: true });
 
-              if (!messagesError && messagesData) {
+              if (!messagesError && messagesData && messagesData.length > 0) {
                 const formattedMessages = messagesData.map((msg) => ({
                   id: msg.id,
                   content: msg.content,
-                  sender: msg.sender,
+                  sender: msg.sender as "user" | "bot",
                   timestamp: new Date(msg.created_at),
                   persona: msg.persona,
                 }));
 
                 setMessages(formattedMessages);
+
+                // Update current persona based on the last bot message
+                const lastBotMessage = [...formattedMessages]
+                  .reverse()
+                  .find((msg) => msg.sender === "bot" && msg.persona);
+
+                if (lastBotMessage && lastBotMessage.persona) {
+                  const personaType = getPersonaTypeFromDisplayName(
+                    lastBotMessage.persona,
+                  );
+                  if (personaType) {
+                    setCurrentPersona(personaType);
+                  }
+                }
               }
             }
 
@@ -115,27 +132,59 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
           // Load conversations from localStorage for unauthenticated users
           const storedChats = localStorage.getItem("unauthenticatedChats");
           if (storedChats) {
-            const parsedChats = JSON.parse(storedChats);
-            if (parsedChats.length > 0) {
-              // Format the stored chats
-              const formattedHistory = parsedChats.map((chat: any) => ({
-                id: chat.id,
-                title: chat.title,
-                date: new Date(chat.date).toLocaleDateString(),
-                selected: false,
-              }));
+            try {
+              const parsedChats = JSON.parse(storedChats);
+              if (parsedChats.length > 0) {
+                // Format the stored chats
+                const formattedHistory = parsedChats.map((chat: any) => ({
+                  id: chat.id,
+                  title: chat.title,
+                  date: new Date(chat.date).toLocaleDateString(),
+                  selected: false,
+                }));
 
-              // Set the first chat as selected
-              if (formattedHistory.length > 0) {
-                formattedHistory[0].selected = true;
+                // Set the first chat as selected
+                if (formattedHistory.length > 0) {
+                  formattedHistory[0].selected = true;
+                  setCurrentConversationId(formattedHistory[0].id);
 
-                // If this chat has messages, load them
-                if (parsedChats[0].messages) {
-                  setMessages(parsedChats[0].messages);
+                  // If this chat has messages, load them
+                  if (
+                    parsedChats[0].messages &&
+                    parsedChats[0].messages.length > 0
+                  ) {
+                    // Need to ensure timestamp is converted back to Date objects
+                    const processedMessages = parsedChats[0].messages.map(
+                      (msg: any) => ({
+                        ...msg,
+                        timestamp: new Date(msg.timestamp),
+                      }),
+                    );
+
+                    setMessages(processedMessages);
+
+                    // Update current persona based on the last bot message
+                    const lastBotMessage = [...processedMessages]
+                      .reverse()
+                      .find((msg: any) => msg.sender === "bot" && msg.persona);
+
+                    if (lastBotMessage && lastBotMessage.persona) {
+                      const personaType = getPersonaTypeFromDisplayName(
+                        lastBotMessage.persona,
+                      );
+                      if (personaType) {
+                        setCurrentPersona(personaType);
+                      }
+                    }
+                  }
                 }
-              }
 
-              setChatHistory(formattedHistory);
+                setChatHistory(formattedHistory);
+              }
+            } catch (parseError) {
+              console.error("Error parsing stored chats:", parseError);
+              // Handle corrupted localStorage by starting fresh
+              localStorage.removeItem("unauthenticatedChats");
             }
           }
         }
@@ -149,9 +198,31 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
     loadConversations();
   }, []);
 
-  const handleNewChat = () => {
+  const getPersonaTypeFromDisplayName = (
+    displayName: string,
+  ): PersonaType | null => {
+    switch (displayName) {
+      case "GreenBot":
+        return "greenbot";
+      case "EcoLife Guide":
+        return "lifestyle";
+      case "Waste Wizard":
+        return "waste";
+      case "Nature Navigator":
+        return "nature";
+      case "Power Sage":
+        return "energy";
+      case "Climate Guardian":
+        return "climate";
+      default:
+        return null;
+    }
+  };
+
+  const handleNewChat = async () => {
     // Create a new chat ID
     const newChatId = uuidv4();
+    setCurrentConversationId(newChatId);
 
     // Create a new chat history item
     const newChat = {
@@ -180,14 +251,44 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
 
     setMessages([welcomeMessage]);
 
-    // Save to local storage for unauthenticated users
-    saveToLocalStorage(newChatId, "New Conversation", [welcomeMessage]);
+    // Check if user is authenticated
+    const { data } = await supabase.auth.getSession();
+    const isAuthenticated = !!data.session;
+
+    if (isAuthenticated) {
+      try {
+        // Create new conversation in Supabase
+        await supabase.from("conversations").insert({
+          id: newChatId,
+          title: "New Conversation",
+          persona: getPersonaDisplayName(currentPersona),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        // Add welcome message
+        await supabase.from("messages").insert({
+          id: welcomeMessage.id,
+          conversation_id: newChatId,
+          content: welcomeMessage.content,
+          sender: welcomeMessage.sender,
+          persona: welcomeMessage.persona,
+          created_at: welcomeMessage.timestamp.toISOString(),
+        });
+      } catch (error) {
+        console.error("Error creating new conversation in Supabase:", error);
+      }
+    } else {
+      // Save to local storage for unauthenticated users
+      saveToLocalStorage(newChatId, "New Conversation", [welcomeMessage]);
+    }
   };
 
   const handleSelectChat = async (id: string) => {
-    if (isLoading) return;
+    if (isLoading || id === currentConversationId) return;
 
     setIsLoading(true);
+    setCurrentConversationId(id);
 
     try {
       // Update chat history to reflect the selected chat
@@ -219,30 +320,109 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
 
         if (error) throw error;
 
-        if (messagesData) {
+        if (messagesData && messagesData.length > 0) {
           const formattedMessages = messagesData.map((msg) => ({
             id: msg.id,
             content: msg.content,
-            sender: msg.sender,
+            sender: msg.sender as "user" | "bot",
             timestamp: new Date(msg.created_at),
             persona: msg.persona,
           }));
 
           setMessages(formattedMessages);
+
+          // Update current persona based on the last bot message
+          const lastBotMessage = [...formattedMessages]
+            .reverse()
+            .find((msg) => msg.sender === "bot" && msg.persona);
+
+          if (lastBotMessage && lastBotMessage.persona) {
+            const personaType = getPersonaTypeFromDisplayName(
+              lastBotMessage.persona,
+            );
+            if (personaType) {
+              setCurrentPersona(personaType);
+            }
+          }
+        } else {
+          // If no messages found, create a welcome message
+          const welcomeMessage = {
+            id: uuidv4(),
+            content: `Hello! I'm ${getPersonaDisplayName(currentPersona)}, your sustainable AI assistant. How can I help you with environmental topics today?`,
+            sender: "bot",
+            timestamp: new Date(),
+            persona: getPersonaDisplayName(currentPersona),
+          };
+
+          setMessages([welcomeMessage]);
+
+          // Save the welcome message to Supabase
+          await supabase.from("messages").insert({
+            id: welcomeMessage.id,
+            conversation_id: id,
+            content: welcomeMessage.content,
+            sender: welcomeMessage.sender,
+            persona: welcomeMessage.persona,
+            created_at: welcomeMessage.timestamp.toISOString(),
+          });
         }
       } else {
         // Load messages from localStorage for unauthenticated users
         const storedChats = localStorage.getItem("unauthenticatedChats");
         if (storedChats) {
-          const parsedChats = JSON.parse(storedChats);
-          const selectedStoredChat = parsedChats.find(
-            (chat: any) => chat.id === id,
-          );
+          try {
+            const parsedChats = JSON.parse(storedChats);
+            const selectedStoredChat = parsedChats.find(
+              (chat: any) => chat.id === id,
+            );
 
-          if (selectedStoredChat && selectedStoredChat.messages) {
-            setMessages(selectedStoredChat.messages);
-          } else {
-            // If no messages found, reset to a welcome message
+            if (
+              selectedStoredChat &&
+              selectedStoredChat.messages &&
+              selectedStoredChat.messages.length > 0
+            ) {
+              // Need to ensure timestamp is converted back to Date objects
+              const processedMessages = selectedStoredChat.messages.map(
+                (msg: any) => ({
+                  ...msg,
+                  timestamp: new Date(msg.timestamp),
+                }),
+              );
+
+              setMessages(processedMessages);
+
+              // Update current persona based on the last bot message
+              const lastBotMessage = [...processedMessages]
+                .reverse()
+                .find((msg: any) => msg.sender === "bot" && msg.persona);
+
+              if (lastBotMessage && lastBotMessage.persona) {
+                const personaType = getPersonaTypeFromDisplayName(
+                  lastBotMessage.persona,
+                );
+                if (personaType) {
+                  setCurrentPersona(personaType);
+                }
+              }
+            } else {
+              // If no messages found, create a welcome message
+              const welcomeMessage = {
+                id: uuidv4(),
+                content: `Hello! I'm ${getPersonaDisplayName(currentPersona)}, your sustainable AI assistant. How can I help you with environmental topics today?`,
+                sender: "bot",
+                timestamp: new Date(),
+                persona: getPersonaDisplayName(currentPersona),
+              };
+
+              setMessages([welcomeMessage]);
+
+              // Save to localStorage
+              saveToLocalStorage(id, selectedChat.title, [welcomeMessage]);
+            }
+          } catch (error) {
+            console.error("Error processing stored chats:", error);
+
+            // Handle error by creating a fresh welcome message
             const welcomeMessage = {
               id: uuidv4(),
               content: `Hello! I'm ${getPersonaDisplayName(currentPersona)}, your sustainable AI assistant. How can I help you with environmental topics today?`,
@@ -252,6 +432,7 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
             };
 
             setMessages([welcomeMessage]);
+            saveToLocalStorage(id, selectedChat.title, [welcomeMessage]);
           }
         }
       }
@@ -319,18 +500,89 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
     // Add user message to the conversation
     setMessages((prevMessages) => [...prevMessages, userMessage]);
 
-    // Create a dummy bot response (in a real app, you'd call your API here)
-    const botMessage: ChatMessage = {
-      id: uuidv4(),
-      content: `As ${getPersonaDisplayName(currentPersona)}, I'm analyzing your question about "${content}". In a real implementation, this would call an AI API to generate a proper response.`,
+    // Show loading indicator
+    const loadingMessageId = uuidv4();
+    const loadingMessage: ChatMessage = {
+      id: loadingMessageId,
+      content: "Thinking...",
       sender: "bot",
       timestamp: new Date(),
       persona: getPersonaDisplayName(currentPersona),
     };
 
-    // Add bot response after a short delay to simulate processing
-    setTimeout(() => {
-      setMessages((prevMessages) => [...prevMessages, botMessage]);
+    setMessages((prevMessages) => [...prevMessages, loadingMessage]);
+
+    try {
+      // Check if user is authenticated
+      const { data } = await supabase.auth.getSession();
+      const isAuthenticated = !!data.session;
+
+      let apiResponse;
+
+      // Use the existing DeepSeek API integration
+      if (true) {
+        // Changed from isAuthenticated to always try the API if available
+        try {
+          // Import the API service
+          const { callDeepseekAPI, getSystemPromptForPersona } = await import(
+            "../lib/deepseek"
+          );
+
+          // Get API key from localStorage
+          const apiKey = localStorage.getItem("deepseek-api-key");
+          if (!apiKey) {
+            throw new Error(
+              "API key not found. Please configure it in settings.",
+            );
+          }
+
+          // Create the message history
+          const messageHistory = [
+            {
+              role: "system",
+              content: getSystemPromptForPersona(
+                getPersonaDisplayName(currentPersona),
+              ),
+            },
+            // Add previous messages for context (limit to last few)
+            ...messages
+              .slice(-6) // Last 6 messages for context
+              .filter((msg) => msg.id !== loadingMessageId) // Filter out loading message
+              .map((msg) => ({
+                role: msg.sender === "user" ? "user" : "assistant",
+                content: msg.content,
+              })),
+            // Add the new user message
+            { role: "user", content },
+          ];
+
+          // Call the API
+          apiResponse = await callDeepseekAPI(messageHistory, apiKey);
+        } catch (apiError) {
+          console.error("API error:", apiError);
+          // Fall back to a basic response if API call fails
+          apiResponse = `I'm ${getPersonaDisplayName(currentPersona)}. I couldn't access my AI service right now. Please check your API key in settings or try again later.`;
+        }
+      } else {
+        // For unauthenticated users without API key, use a simpler approach
+        apiResponse = `I'm ${getPersonaDisplayName(currentPersona)}. Here's some information about "${content}" related to ${getPersonaSpecialty(currentPersona)}...`;
+      }
+
+      // Create the bot response with the API response
+      const botMessage: ChatMessage = {
+        id: uuidv4(),
+        content: apiResponse,
+        sender: "bot",
+        timestamp: new Date(),
+        persona: getPersonaDisplayName(currentPersona),
+      };
+
+      // Replace loading message with the actual response
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === loadingMessageId ? botMessage : msg,
+        ),
+      );
 
       // If this is the first user message, update the chat title
       if (selectedChat.title === "New Conversation" && content.length > 0) {
@@ -345,21 +597,104 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
         setChatHistory(updatedHistory);
 
         // Save the updated conversation
-        const updatedMessages = [...messages, userMessage, botMessage];
+        const updatedMessages = messages
+          .filter((msg) => msg.id !== loadingMessageId)
+          .concat([userMessage, botMessage]);
+
         saveToLocalStorage(selectedChat.id, newTitle, updatedMessages);
+
+        // If authenticated, update the conversation in Supabase
+        if (isAuthenticated) {
+          updateConversationInSupabase(
+            selectedChat.id,
+            newTitle,
+            userMessage,
+            botMessage,
+          );
+        }
       } else {
         // Just save the updated messages
-        const updatedMessages = [...messages, userMessage, botMessage];
+        const updatedMessages = messages
+          .filter((msg) => msg.id !== loadingMessageId)
+          .concat([userMessage, botMessage]);
+
         saveToLocalStorage(
           selectedChat.id,
           selectedChat.title,
           updatedMessages,
         );
+
+        // If authenticated, save the messages to Supabase
+        if (isAuthenticated) {
+          saveMessagesToSupabase(selectedChat.id, [userMessage, botMessage]);
+        }
       }
-    }, 1000);
+    } catch (error) {
+      console.error("Error sending message:", error);
+
+      // Replace loading message with error message
+      const errorMessage: ChatMessage = {
+        id: uuidv4(),
+        content: `I'm sorry, I encountered an error while processing your request. ${error instanceof Error ? error.message : "Please try again later."}`,
+        sender: "bot",
+        timestamp: new Date(),
+        persona: getPersonaDisplayName(currentPersona),
+      };
+
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === loadingMessageId ? errorMessage : msg,
+        ),
+      );
+    }
   };
 
-  const handlePersonaChange = (persona: PersonaType) => {
+  // Helper function to update conversation in Supabase
+  const updateConversationInSupabase = async (
+    conversationId: string,
+    title: string,
+    userMessage: ChatMessage,
+    botMessage: ChatMessage,
+  ) => {
+    try {
+      // Update conversation title
+      await supabase
+        .from("conversations")
+        .update({
+          title,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+
+      // Save the messages
+      await saveMessagesToSupabase(conversationId, [userMessage, botMessage]);
+    } catch (error) {
+      console.error("Error updating conversation in Supabase:", error);
+    }
+  };
+
+  // Helper function to save messages to Supabase
+  const saveMessagesToSupabase = async (
+    conversationId: string,
+    messages: ChatMessage[],
+  ) => {
+    try {
+      for (const msg of messages) {
+        await supabase.from("messages").insert({
+          id: msg.id,
+          conversation_id: conversationId,
+          content: msg.content,
+          sender: msg.sender,
+          persona: msg.persona,
+          created_at: msg.timestamp.toISOString(),
+        });
+      }
+    } catch (error) {
+      console.error("Error saving messages to Supabase:", error);
+    }
+  };
+
+  const handlePersonaChange = async (persona: PersonaType) => {
     setCurrentPersona(persona);
 
     // Add a message from the new persona
@@ -379,6 +714,24 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
       // Save the updated conversation with the new persona message
       const updatedMessages = [...messages, botMessage];
       saveToLocalStorage(selectedChat.id, selectedChat.title, updatedMessages);
+
+      // Check if user is authenticated
+      const { data } = await supabase.auth.getSession();
+      const isAuthenticated = !!data.session;
+
+      if (isAuthenticated) {
+        // Update conversation persona in Supabase
+        await supabase
+          .from("conversations")
+          .update({
+            persona: getPersonaDisplayName(persona),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", selectedChat.id);
+
+        // Save the persona change message
+        await saveMessagesToSupabase(selectedChat.id, [botMessage]);
+      }
     }
   };
 
@@ -424,7 +777,7 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
     setIsQuizOpen(true);
   };
 
-  const handleQuizComplete = (score: number, total: number) => {
+  const handleQuizComplete = async (score: number, total: number) => {
     setIsQuizOpen(false);
 
     // Add a message about the quiz results
@@ -447,6 +800,15 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
     if (selectedChat) {
       const updatedMessages = [...messages, botMessage];
       saveToLocalStorage(selectedChat.id, selectedChat.title, updatedMessages);
+
+      // Check if user is authenticated
+      const { data } = await supabase.auth.getSession();
+      const isAuthenticated = !!data.session;
+
+      if (isAuthenticated) {
+        // Save the quiz result message
+        await saveMessagesToSupabase(selectedChat.id, [botMessage]);
+      }
     }
   };
 

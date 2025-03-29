@@ -57,6 +57,37 @@ const getSustainabilityFact = () => {
   return facts[Math.floor(Math.random() * facts.length)];
 };
 
+// Simple markdown to HTML converter for basic formatting
+const simpleMarkdownToHtml = (text: string) => {
+  // Replace headers
+  let html = text.replace(
+    /^# (.*$)/gm,
+    '<h1 class="text-xl font-bold mb-2">$1</h1>',
+  );
+  html = html.replace(
+    /^## (.*$)/gm,
+    '<h2 class="text-lg font-bold mb-2">$1</h2>',
+  );
+  html = html.replace(
+    /^### (.*$)/gm,
+    '<h3 class="text-md font-bold mb-2">$1</h3>',
+  );
+
+  // Replace bold
+  html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // Replace italic
+  html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
+
+  // Replace lists
+  html = html.replace(/^\s*-\s+(.*$)/gm, '<li class="ml-4">$1</li>');
+
+  // Replace line breaks with proper spacing
+  html = html.replace(/\n\n/g, "<br/><br/>");
+
+  return html;
+};
+
 const ChatArea = ({
   messages = [
     {
@@ -331,9 +362,19 @@ const ChatArea = ({
                     </Badge>
                   </div>
                 )}
-                <p className="whitespace-pre-wrap break-words">
-                  {message.content}
-                </p>
+                {/* Replace the plain text with simple HTML rendering */}
+                {message.sender === "user" ? (
+                  <p className="whitespace-pre-wrap break-words">
+                    {message.content}
+                  </p>
+                ) : (
+                  <div
+                    className="whitespace-pre-wrap break-words"
+                    dangerouslySetInnerHTML={{
+                      __html: simpleMarkdownToHtml(message.content),
+                    }}
+                  />
+                )}
                 <div className="flex justify-between items-center mt-2">
                   {message.sender === "bot" && (
                     <div className="flex items-center">
