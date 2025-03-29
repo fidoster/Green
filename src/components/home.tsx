@@ -3,6 +3,7 @@ import AuthForm from "./AuthForm";
 import ChatInterface from "./ChatInterface";
 import { supabase } from "../lib/supabase";
 import { ThemeToggle } from "./ThemeToggle";
+import { useTheme } from "./ThemeProvider";
 
 interface HomeProps {
   initialAuthenticated?: boolean;
@@ -11,6 +12,7 @@ interface HomeProps {
 const Home = ({ initialAuthenticated = false }: HomeProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(initialAuthenticated);
   const [isLoading, setIsLoading] = useState(true);
+  const { theme } = useTheme();
 
   // Check if user is authenticated with Supabase
   useEffect(() => {
@@ -20,6 +22,19 @@ const Home = ({ initialAuthenticated = false }: HomeProps) => {
       setIsLoading(false);
     };
 
+    // Make sure the theme is applied to the HTML root
+    const applySavedTheme = () => {
+      const savedTheme = localStorage.getItem("greenbot-ui-theme") || "light";
+      const root = window.document.documentElement;
+
+      if (savedTheme === "dark") {
+        root.classList.add("dark");
+      } else {
+        root.classList.remove("dark");
+      }
+    };
+
+    applySavedTheme();
     checkAuth();
 
     // Set up auth state change listener
@@ -49,7 +64,7 @@ const Home = ({ initialAuthenticated = false }: HomeProps) => {
   return (
     <div className="min-h-screen bg-[#F5F5F5] dark:bg-[#2F3635]">
       {!isAuthenticated ? (
-        <div className="relative">
+        <div className="relative h-screen">
           <div className="absolute top-4 right-4 z-10">
             <ThemeToggle />
           </div>
