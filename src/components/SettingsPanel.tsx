@@ -53,7 +53,9 @@ const SettingsPanel = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-[#F5F5F5] p-6 shadow-lg dark:bg-[#2A3130] dark:text-white">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-[#2C4A3E]">Settings</h2>
+          <h2 className="text-xl font-semibold text-[#2C4A3E] dark:text-white">
+            Settings
+          </h2>
           <button
             onClick={onClose}
             className="rounded-full p-1 text-[#2C4A3E] hover:bg-[#98C9A3]/20"
@@ -86,7 +88,7 @@ const SettingsPanel = ({
               ) : (
                 <Sun className="h-5 w-5 text-[#8BA888]" />
               )}
-              <span className="text-sm font-medium text-[#2C4A3E]">
+              <span className="text-sm font-medium text-[#2C4A3E] dark:text-white">
                 {isDarkMode ? "Dark Mode" : "Light Mode"}
               </span>
             </div>
@@ -103,7 +105,7 @@ const SettingsPanel = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Leaf className="h-5 w-5 text-[#8BA888]" />
-              <span className="text-sm font-medium text-[#2C4A3E]">
+              <span className="text-sm font-medium text-[#2C4A3E] dark:text-white">
                 Show Environmental Impact
               </span>
             </div>
@@ -132,7 +134,7 @@ const SettingsPanel = ({
                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
                 <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
               </svg>
-              <span className="text-sm font-medium text-[#2C4A3E]">
+              <span className="text-sm font-medium text-[#2C4A3E] dark:text-white">
                 Notifications
               </span>
             </div>
@@ -162,7 +164,7 @@ const SettingsPanel = ({
                 <polyline points="17 21 17 13 7 13 7 21" />
                 <polyline points="7 3 7 8 15 8" />
               </svg>
-              <span className="text-sm font-medium text-[#2C4A3E]">
+              <span className="text-sm font-medium text-[#2C4A3E] dark:text-white">
                 Auto-save Conversations
               </span>
             </div>
@@ -181,11 +183,11 @@ const SettingsPanel = ({
           <div className="rounded-md bg-[#98C9A3]/20 p-3">
             <div className="mb-2 flex items-center gap-2">
               <Info className="h-4 w-4 text-[#2C4A3E]" />
-              <h3 className="text-sm font-medium text-[#2C4A3E]">
+              <h3 className="text-sm font-medium text-[#2C4A3E] dark:text-white">
                 Your Environmental Impact
               </h3>
             </div>
-            <div className="space-y-1 text-xs text-[#2C4A3E]/80">
+            <div className="space-y-1 text-xs text-[#2C4A3E]/80 dark:text-white/80">
               <p>• Carbon saved: 0.8kg (vs. traditional search)</p>
               <p>• Energy efficiency: 92% better than average</p>
               <p>• Trees equivalent: 0.04 trees preserved</p>

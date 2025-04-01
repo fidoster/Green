@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Trash2,
   Leaf,
+  Shield,
 } from "lucide-react";
 import UserAvatar from "./UserAvatar";
 import { cn } from "../lib/utils";
@@ -219,6 +220,15 @@ const Sidebar = ({
       >
         <Settings className="mr-2 h-4 w-4" />
         Settings
+      </Button>
+
+      <Button
+        variant="ghost"
+        className="justify-start text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-[#2C4A3E]"
+        onClick={() => (window.location.href = "/admin")}
+      >
+        <Shield className="mr-2 h-4 w-4" />
+        Admin Panel
       </Button>
 
       <div className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
