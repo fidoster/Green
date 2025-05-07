@@ -72,7 +72,7 @@ export async function sendChatMessage(messages: Array<{role: 'user' | 'assistant
           'Authorization': `Bearer ${openaiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4.1-nano',
           messages,
           temperature: 0.7,
         })
